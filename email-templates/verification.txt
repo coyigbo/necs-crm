@@ -1,0 +1,27 @@
+NECS CRM - Account Verification
+================================
+
+Hello!
+
+Welcome to NECS CRM! To complete your account setup, please use the following 6-digit verification code:
+
+    {{ .Token }}
+
+HOW TO USE THIS CODE:
+1. Return to the NECS CRM signup page
+2. Enter the 6-digit code above
+3. Complete your account verification
+
+IMPORTANT SECURITY INFORMATION:
+- This code is unique to your account
+- The code will expire in 10 minutes
+- Do not share this code with anyone
+- If you didn't request this verification, please ignore this email
+
+Having trouble? You can request a new code from the verification page.
+
+---
+NECS CRM
+© 2024 NECS Services. All rights reserved.
+
+Questions? Contact us at support@necservices.org

@@ -23,16 +23,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
+    const startTime = Date.now();
+    const minLoadingTime = 1500; // 1.5 seconds
+
     (async () => {
       const { data } = await supabase.auth.getSession();
       if (!mounted) return;
       setSession(data.session);
-      setLoading(false);
+
+      // Ensure loading is shown for at least 1.5 seconds
+      const elapsed = Date.now() - startTime;
+      const remainingTime = Math.max(0, minLoadingTime - elapsed);
+
+      setTimeout(() => {
+        if (mounted) setLoading(false);
+      }, remainingTime);
     })();
 
     const { data: sub } = supabase.auth.onAuthStateChange(
       (_event, newSession) => {
         setSession(newSession);
+        // For auth state changes, also respect minimum loading time
+        const elapsed = Date.now() - startTime;
+        const remainingTime = Math.max(0, minLoadingTime - elapsed);
+
+        setTimeout(() => {
+          if (mounted) setLoading(false);
+        }, remainingTime);
       }
     );
     return () => {

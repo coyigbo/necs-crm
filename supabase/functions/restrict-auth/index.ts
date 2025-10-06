@@ -31,7 +31,11 @@ const ALLOWED_DOMAIN = "necservices.org";
 
 function isAllowedEmail(email: string | undefined | null): boolean {
   if (!email) return false;
-  return /@necservices\.org$/i.test(email.trim());
+  // Allow @necservices.org emails and any other valid email domains
+  return (
+    /@necservices\.org$/i.test(email.trim()) ||
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+  );
 }
 
 serve(async (req: Request) => {

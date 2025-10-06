@@ -69,13 +69,17 @@ export default function SignUp() {
 
       if (signUpError) throw signUpError;
 
-      await supabase.auth.signOut();
-
-      navigate("/login", {
+      // Navigate to verification page with user data
+      navigate("/verify", {
         replace: true,
         state: {
-          message:
-            "Account created successfully! Please check your email to confirm your account.",
+          email: values.email,
+          userData: {
+            first_name: values.firstName,
+            last_name: values.lastName,
+            full_name: `${values.firstName} ${values.lastName}`,
+            organization_name: values.organization,
+          },
         },
       });
     } catch (err: any) {
@@ -96,6 +100,8 @@ export default function SignUp() {
       form.setFieldsValue({ organization: orgName });
       setOrgLocked(true);
     } else {
+      // For new domains, do not infer organization name; leave editable
+      form.setFieldsValue({ organization: "" });
       setOrgLocked(false);
     }
   };
@@ -235,22 +241,11 @@ export default function SignUp() {
             rules={[
               { required: true, message: "Required" },
               { type: "email", message: "Please enter a valid email" },
-              {
-                validator: (_, value) => {
-                  if (!value) return Promise.resolve();
-                  const allowed = /@necservices\.org$/i.test(value.trim());
-                  return allowed
-                    ? Promise.resolve()
-                    : Promise.reject(
-                        new Error("Use your @necservices.org email")
-                      );
-                },
-              },
             ]}
           >
             <Input
               size="large"
-              placeholder="name@necservices.org"
+              placeholder="name@company.com"
               autoComplete="email"
               prefix={
                 <MailOutlined style={{ color: token.colorTextDescription }} />

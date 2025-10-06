@@ -34,15 +34,17 @@ serve(async (req) => {
     const user = payload.user;
     if (!user?.id) return new Response(JSON.stringify({}), { status: 200 });
 
+    // Derive email domain
+    const email = user.email ?? "";
+    const domainMatch = email.split("@")[1] ?? null;
+
+    // Get organization name from metadata only (do not infer from domain)
     const orgNameRaw = (
       user.user_metadata?.organization_name as string | undefined
     )?.trim();
     const orgName = orgNameRaw && orgNameRaw.length > 0 ? orgNameRaw : null;
-    if (!orgName) return new Response(JSON.stringify({}), { status: 200 });
 
-    // Derive email domain
-    const email = user.email ?? "";
-    const domainMatch = email.split("@")[1] ?? null;
+    if (!orgName) return new Response(JSON.stringify({}), { status: 200 });
 
     // Upsert organization by name and set email_domain if empty
     const { data: orgUpsert, error: orgErr } = await admin

@@ -1,10 +1,26 @@
-import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { ReactNode, useState, useEffect } from "react";
 import { Spin } from "antd";
-import { useAuth } from "./AuthProvider";
+import { useAuth } from "../auth/AuthProvider";
 
-export function ProtectedRoute() {
-  const { user, loading } = useAuth();
-  const location = useLocation();
+interface AuthGuardProps {
+  children: ReactNode;
+}
+
+export function AuthGuard({ children }: AuthGuardProps) {
+  const { loading } = useAuth();
+  const [showContent, setShowContent] = useState(false);
+
+  useEffect(() => {
+    if (!loading) {
+      // Small delay to ensure smooth transition from spinner
+      const timer = setTimeout(() => {
+        setShowContent(true);
+      }, 100);
+      return () => clearTimeout(timer);
+    } else {
+      setShowContent(false);
+    }
+  }, [loading]);
 
   if (loading) {
     return (
@@ -51,8 +67,17 @@ export function ProtectedRoute() {
       </div>
     );
   }
-  if (!user) {
-    return <Navigate to="/login" replace state={{ from: location }} />;
-  }
-  return <Outlet />;
+
+  return (
+    <div
+      style={{
+        opacity: showContent ? 1 : 0,
+        transform: showContent ? "translateY(0)" : "translateY(20px)",
+        transition: "opacity 0.6s ease-out, transform 0.6s ease-out",
+        minHeight: "100vh",
+      }}
+    >
+      {children}
+    </div>
+  );
 }
