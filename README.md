@@ -25,6 +25,34 @@ In Supabase Dashboard → Authentication → Hooks, add the function URL:
 
 The function returns 400 for emails not ending with `@necservices.org`.
 
+## Organizations: Single-org per user
+
+Run SQL:
+
+```bash
+supabase db push --file supabase/sql/organizations.sql
+```
+
+Deploy the org-link function:
+
+```bash
+supabase functions deploy org-link --no-verify-jwt
+```
+
+Set hook in Dashboard → Authentication → Hooks (After signup confirmation or Before sign in):
+
+- After sign up confirmation → `https://<PROJECT_REF>.functions.supabase.co/org-link`
+
+Env required for function:
+
+- `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
+
+Behavior:
+
+- Upserts `organizations` by `name`
+- Upserts `user_organizations` with single membership per user (primary key is `user_id`)
+- First user for an organization becomes `admin`; others default to `member`
+
 ### Local Dev
 
 Optionally test locally:

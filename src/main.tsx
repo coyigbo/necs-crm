@@ -4,6 +4,7 @@ import { App } from "./App";
 import { ThemeProvider } from "./theme/ThemeProvider";
 import "antd/dist/reset.css";
 import { AuthProvider } from "./auth/AuthProvider";
+import { OrgProvider } from "./org/OrgProvider";
 
 const container = document.getElementById("root");
 if (!container) {
@@ -14,7 +15,9 @@ createRoot(container).render(
   <React.StrictMode>
     <ThemeProvider>
       <AuthProvider>
-        <App />
+        <OrgProvider>
+          <App />
+        </OrgProvider>
       </AuthProvider>
     </ThemeProvider>
   </React.StrictMode>

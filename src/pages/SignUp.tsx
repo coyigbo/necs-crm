@@ -1,12 +1,33 @@
 import { Alert, Button, Form, Input, Typography, theme } from "antd";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { MailOutlined, LockOutlined, UserOutlined } from "@ant-design/icons";
 import { supabase } from "../lib/supabaseClient";
 
+// Helper to call edge function
+async function fetchOrgNameByDomain(domain: string): Promise<string | null> {
+  try {
+    const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/org-lookup`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({ domain }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => ({}));
+    return data?.name ?? null;
+  } catch {
+    return null;
+  }
+}
+
 type FormValues = {
   firstName: string;
   lastName: string;
+  organization: string;
   email: string;
   password: string;
   confirmPassword: string;
@@ -17,6 +38,8 @@ export default function SignUp() {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { token } = theme.useToken();
+  const [orgLocked, setOrgLocked] = useState(false);
+  const [form] = Form.useForm<FormValues>();
 
   const getFriendlyAuthError = (e: any): string => {
     const msg: string = e?.message || "Sign up failed";
@@ -31,7 +54,6 @@ export default function SignUp() {
     setError(null);
 
     try {
-      // 1. Sign up with Supabase Auth
       const { error: signUpError } = await supabase.auth.signUp({
         email: values.email,
         password: values.password,
@@ -40,16 +62,15 @@ export default function SignUp() {
             first_name: values.firstName,
             last_name: values.lastName,
             full_name: `${values.firstName} ${values.lastName}`,
+            organization_name: values.organization,
           },
         },
       });
 
       if (signUpError) throw signUpError;
 
-      // 2. Sign out (so they can sign in fresh)
       await supabase.auth.signOut();
 
-      // 3. Navigate to login with success message
       navigate("/login", {
         replace: true,
         state: {
@@ -61,6 +82,21 @@ export default function SignUp() {
       setError(getFriendlyAuthError(err));
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleEmailChange = async (email: string) => {
+    const domain = (email.split("@")[1] || "").toLowerCase();
+    if (!domain) {
+      setOrgLocked(false);
+      return;
+    }
+    const orgName = await fetchOrgNameByDomain(domain);
+    if (orgName) {
+      form.setFieldsValue({ organization: orgName });
+      setOrgLocked(true);
+    } else {
+      setOrgLocked(false);
     }
   };
 
@@ -152,6 +188,7 @@ export default function SignUp() {
         )}
 
         <Form
+          form={form}
           layout="vertical"
           onFinish={onFinish}
           requiredMark={false}
@@ -218,6 +255,20 @@ export default function SignUp() {
               prefix={
                 <MailOutlined style={{ color: token.colorTextDescription }} />
               }
+              onBlur={(e) => handleEmailChange(e.target.value)}
+              style={{ borderRadius: 8 }}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="organization"
+            label="Company / Organization"
+            rules={[{ required: true, message: "Required" }]}
+          >
+            <Input
+              size="large"
+              placeholder="NECS Services"
+              disabled={orgLocked}
               style={{ borderRadius: 8 }}
             />
           </Form.Item>

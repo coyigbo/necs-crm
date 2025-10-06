@@ -2,6 +2,7 @@ import { Card, Typography, Table, Alert, Spin } from "antd";
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { motion } from "framer-motion";
+import { useOrg } from "../org/OrgProvider";
 
 type RosterItem = {
   id: string;
@@ -12,13 +13,19 @@ type RosterItem = {
 export default function MasterRoster() {
   const [rows, setRows] = useState<RosterItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { organizationId } = useOrg();
 
   useEffect(() => {
     let isMounted = true;
-    (async () => {
+    async function load() {
+      if (!organizationId) {
+        setRows([]);
+        return;
+      }
       const { data, error } = await supabase
         .from("master_roster")
         .select("id,name,status")
+        .eq("organization_id", organizationId)
         .order("name", { ascending: true });
       if (!isMounted) return;
       if (error) {
@@ -27,11 +34,12 @@ export default function MasterRoster() {
       } else {
         setRows((data as RosterItem[]) ?? []);
       }
-    })();
+    }
+    load();
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [organizationId]);
 
   return (
     <Card bordered={false}>
