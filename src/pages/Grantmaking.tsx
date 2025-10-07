@@ -200,7 +200,6 @@ export default function Grantmaking() {
           items={[
             { key: "applications", label: "Applications" },
             { key: "outcomes", label: "Outcomes" },
-            { key: "disbursed", label: "Donor Tracker" },
           ]}
           style={{ marginBottom: 16 }}
         />

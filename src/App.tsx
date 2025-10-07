@@ -20,6 +20,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import Grantmaking from "./pages/Grantmaking";
 import Settings from "./pages/Settings";
 import Networking from "./pages/Networking";
+import DonorTracker from "./pages/DonorTracker";
 
 function AnimatedRoutes() {
   const location = useLocation();
@@ -43,6 +44,7 @@ function AnimatedRoutes() {
                 <Route path="/" element={<Home />} />
                 <Route path="/roster" element={<MasterRoster />} />
                 <Route path="/grantmaking" element={<Grantmaking />} />
+                <Route path="/donor-tracker" element={<DonorTracker />} />
                 <Route path="/networking" element={<Networking />} />
                 <Route path="/closed" element={<ClosedClientFiles />} />
                 <Route path="/settings" element={<Settings />} />

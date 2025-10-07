@@ -7,6 +7,7 @@ import {
   ShareAltOutlined,
   FileDoneOutlined,
   SettingOutlined,
+  MoneyCollectOutlined,
 } from "@ant-design/icons";
 import { ReactNode, useMemo } from "react";
 import { useThemeController } from "../theme/ThemeProvider";
@@ -24,6 +25,13 @@ export function AppLayout({ children }: AppLayoutProps) {
   const { isDarkMode, toggleDarkMode } = useThemeController();
   const location = useLocation();
   const navigate = useNavigate();
+  const selectedKey = useMemo(() => {
+    if (location.pathname === "/grantmaking") {
+      const params = new URLSearchParams(location.search);
+      if (params.get("tab") === "disbursed") return "/donor-tracker";
+    }
+    return location.pathname;
+  }, [location.pathname, location.search]);
   const menuItems = useMemo(
     () => [
       { key: "/", icon: <HomeOutlined />, label: "Home" },
@@ -32,6 +40,11 @@ export function AppLayout({ children }: AppLayoutProps) {
         key: "/grantmaking",
         icon: <ReconciliationOutlined />,
         label: "Grants",
+      },
+      {
+        key: "/donor-tracker",
+        icon: <MoneyCollectOutlined />,
+        label: "Donor Tracker",
       },
       { key: "/networking", icon: <ShareAltOutlined />, label: "Networking" },
       {
@@ -58,7 +71,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         <Menu
           theme="dark"
           mode="inline"
-          selectedKeys={[location.pathname]}
+          selectedKeys={[selectedKey]}
           items={menuItems}
           onClick={({ key }) => typeof key === "string" && navigate(key)}
         />
