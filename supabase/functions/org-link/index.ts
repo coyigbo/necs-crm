@@ -15,6 +15,15 @@ type HookPayload = {
   } | null;
 };
 
+function corsHeaders() {
+  return {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+}
+
 const supabaseUrl = Deno.env.get("SUPABASE_URL");
 const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 if (!supabaseUrl || !supabaseKey) {
@@ -27,24 +36,43 @@ const admin = createClient(supabaseUrl, supabaseKey, {
 });
 
 serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === "OPTIONS") {
+    return new Response("OK", {
+      status: 200,
+      headers: corsHeaders(),
+    });
+  }
+
   if (req.method !== "POST")
-    return new Response("Method Not Allowed", { status: 405 });
+    return new Response("Method Not Allowed", {
+      status: 405,
+      headers: corsHeaders(),
+    });
   try {
     const payload = (await req.json()) as HookPayload;
     const user = payload.user;
+    console.log("org-link function called with user:", user?.id);
+    console.log("user metadata:", user?.user_metadata);
+
     if (!user?.id) return new Response(JSON.stringify({}), { status: 200 });
 
     // Derive email domain
     const email = user.email ?? "";
     const domainMatch = email.split("@")[1] ?? null;
+    console.log("email domain:", domainMatch);
 
     // Get organization name from metadata only (do not infer from domain)
     const orgNameRaw = (
       user.user_metadata?.organization_name as string | undefined
     )?.trim();
     const orgName = orgNameRaw && orgNameRaw.length > 0 ? orgNameRaw : null;
+    console.log("organization name:", orgName);
 
-    if (!orgName) return new Response(JSON.stringify({}), { status: 200 });
+    if (!orgName) {
+      console.log("No organization name found, skipping organization creation");
+      return new Response(JSON.stringify({}), { status: 200 });
+    }
 
     // Upsert organization by name and set email_domain if empty
     const { data: orgUpsert, error: orgErr } = await admin
@@ -76,8 +104,15 @@ serve(async (req) => {
       );
     if (linkErr) throw linkErr;
 
-    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders(), "Content-Type": "application/json" },
+    });
   } catch (e) {
-    return new Response(JSON.stringify({ error: String(e) }), { status: 500 });
+    console.error("org-link function error:", e);
+    return new Response(JSON.stringify({ error: String(e) }), {
+      status: 500,
+      headers: { ...corsHeaders(), "Content-Type": "application/json" },
+    });
   }
 });

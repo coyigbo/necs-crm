@@ -53,7 +53,10 @@ export default function Verify() {
 
       // Create organization after successful verification
       try {
-        await fetch(
+        console.log("Creating organization for user:", user.id);
+        console.log("User metadata:", user.user_metadata);
+
+        const response = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/org-link`,
           {
             method: "POST",
@@ -71,8 +74,21 @@ export default function Verify() {
             }),
           }
         );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(
+            "Organization creation failed:",
+            response.status,
+            errorText
+          );
+          throw new Error(`Organization creation failed: ${response.status}`);
+        }
+
+        const result = await response.json();
+        console.log("Organization creation result:", result);
       } catch (orgError) {
-        console.warn("Failed to create organization:", orgError);
+        console.error("Failed to create organization:", orgError);
         // Don't fail verification if org creation fails
       }
 
