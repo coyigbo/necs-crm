@@ -31,7 +31,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       {
         key: "/grantmaking",
         icon: <ReconciliationOutlined />,
-        label: "Grantmaking",
+        label: "Grants",
       },
       { key: "/networking", icon: <ShareAltOutlined />, label: "Networking" },
       {
