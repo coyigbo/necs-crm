@@ -17,6 +17,8 @@ import {
   Dropdown,
   Divider,
 } from "antd";
+import { Upload } from "antd";
+const { Dragger } = Upload;
 import { useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -48,6 +50,16 @@ type GrantItem = {
   review_outcome?: string | null;
 };
 
+type DisbursedAwardItem = {
+  id: string;
+  donor_name: string | null;
+  award_name: string | null;
+  amount: number | null;
+  date_disbursed: string | null;
+  notes: string | null;
+  user_id?: string | null;
+};
+
 export default function Grantmaking() {
   const [rows, setRows] = useState<GrantItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +72,10 @@ export default function Grantmaking() {
   const [createForm] = Form.useForm();
   const { user } = useAuth();
   const [selectedGrant, setSelectedGrant] = useState<GrantItem | null>(null);
+  const [awards, setAwards] = useState<DisbursedAwardItem[] | null>(null);
+  const [awardOpen, setAwardOpen] = useState(false);
+  const [awardForm] = Form.useForm();
+  const [awardImportOpen, setAwardImportOpen] = useState(false);
 
   const loadGrantsWithNames = async (orgId: string) => {
     const { data, error } = await supabase
@@ -103,14 +119,56 @@ export default function Grantmaking() {
     }
   };
 
+  const loadAwards = async (orgId: string) => {
+    const { data, error } = await supabase
+      .from("disbursed_awards")
+      .select("id,donor_name,award_name,amount,date_disbursed,notes,user_id")
+      .eq("organization_id", orgId)
+      .order("date_disbursed", { ascending: false });
+    if (error) throw error;
+    const list = (data as DisbursedAwardItem[]) ?? [];
+    try {
+      const ids = Array.from(
+        new Set(list.map((r) => r.user_id).filter(Boolean) as string[])
+      );
+      if (ids.length > 0) {
+        const url = `${
+          import.meta.env.VITE_SUPABASE_URL
+        }/functions/v1/user-names`;
+        const res = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({ userIds: ids }),
+        });
+        const payload = await res.json().catch(() => ({ names: {} }));
+        const names: Record<string, string> = payload?.names ?? {};
+        setAwards(
+          list.map((r) => ({
+            ...(r as any),
+            _creatorName: names[r.user_id ?? ""],
+          }))
+        );
+      } else {
+        setAwards(list);
+      }
+    } catch {
+      setAwards(list);
+    }
+  };
+
   useEffect(() => {
     let isMounted = true;
     async function load() {
       if (!organizationId) {
         setRows([]);
+        setAwards([]);
         return;
       }
       await loadGrantsWithNames(organizationId);
+      await loadAwards(organizationId);
       if (!isMounted) return;
     }
     load();
@@ -142,6 +200,7 @@ export default function Grantmaking() {
           items={[
             { key: "applications", label: "Applications" },
             { key: "outcomes", label: "Outcomes" },
+            { key: "disbursed", label: "Donor Tracker" },
           ]}
           style={{ marginBottom: 16 }}
         />
@@ -1044,6 +1103,86 @@ export default function Grantmaking() {
                 })()}
               </>
             )}
+            {activeTab === "disbursed" && (
+              <>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    marginBottom: 12,
+                  }}
+                >
+                  <Button type="primary" onClick={() => setAwardOpen(true)}>
+                    Add Disbursed Award
+                  </Button>
+                  <Button
+                    style={{ marginLeft: 8 }}
+                    onClick={() => setAwardImportOpen(true)}
+                  >
+                    Import CSV
+                  </Button>
+                </div>
+                <Table
+                  rowKey={(r) => r.id}
+                  dataSource={awards ?? []}
+                  columns={[
+                    { title: "Donor Name", dataIndex: "donor_name" },
+                    {
+                      title: "Created By",
+                      render: (r: any) => r._creatorName || "—",
+                    },
+                    {
+                      title: "Date Opened",
+                      dataIndex: "date_opened",
+                      width: 120,
+                      render: () => null,
+                    },
+                    {
+                      title: "Date Due",
+                      dataIndex: "date_due",
+                      width: 120,
+                      render: () => null,
+                    },
+                    {
+                      title: "Report Due",
+                      dataIndex: "report_due",
+                      width: 120,
+                      render: () => null,
+                    },
+                    {
+                      title: "Program",
+                      dataIndex: "program",
+                      render: () => null,
+                    },
+                    { title: "Award Name", dataIndex: "award_name" },
+                    {
+                      title: "Amount",
+                      dataIndex: "amount",
+                      width: 140,
+                      render: (v: number | null) =>
+                        typeof v === "number"
+                          ? new Intl.NumberFormat("en-US", {
+                              style: "currency",
+                              currency: "USD",
+                              maximumFractionDigits: 0,
+                            }).format(v)
+                          : "—",
+                    },
+                    {
+                      title: "Date Disbursed",
+                      dataIndex: "date_disbursed",
+                      width: 140,
+                    },
+                    {
+                      title: "Region",
+                      dataIndex: "region",
+                      render: () => null,
+                    },
+                    { title: "Notes", dataIndex: "notes" },
+                  ]}
+                />
+              </>
+            )}
           </motion.div>
         )}
       </motion.div>
@@ -1206,6 +1345,170 @@ export default function Grantmaking() {
             </div>
           </div>
         )}
+      </Modal>
+
+      <Modal
+        title="Add Disbursed Award"
+        open={awardOpen}
+        onCancel={() => setAwardOpen(false)}
+        footer={null}
+        destroyOnClose
+      >
+        <Form
+          form={awardForm}
+          layout="vertical"
+          onFinish={async (values: {
+            donor_name?: string;
+            award_name?: string;
+            amount?: number;
+            date_disbursed?: any;
+            notes?: string;
+          }) => {
+            if (!organizationId) return;
+            try {
+              const { error } = await supabase.from("disbursed_awards").insert({
+                donor_name: values.donor_name ?? null,
+                award_name: values.award_name ?? null,
+                amount:
+                  typeof values.amount === "number" ? values.amount : null,
+                date_disbursed: values.date_disbursed
+                  ? values.date_disbursed.format("YYYY-MM-DD")
+                  : null,
+                notes: values.notes ?? null,
+                organization_id: organizationId,
+                user_id: user?.id ?? null,
+              });
+              if (error) throw error;
+              message.success("Award added");
+              awardForm.resetFields();
+              setAwardOpen(false);
+              await loadAwards(organizationId);
+            } catch {
+              message.error("Failed to add award");
+            }
+          }}
+          requiredMark={false}
+        >
+          <Form.Item name="donor_name" label="Donor Name">
+            <Input placeholder="Donor Name" />
+          </Form.Item>
+          <Form.Item name="award_name" label="Award Name">
+            <Input placeholder="Award Name" />
+          </Form.Item>
+          <Form.Item name="amount" label="Amount">
+            <InputNumber style={{ width: "100%" }} min={0} />
+          </Form.Item>
+          <Form.Item name="date_disbursed" label="Date Disbursed">
+            <DatePicker style={{ width: "100%" }} />
+          </Form.Item>
+          <Form.Item name="notes" label="Notes">
+            <Input.TextArea rows={3} />
+          </Form.Item>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <Button onClick={() => setAwardOpen(false)}>Cancel</Button>
+            <Button type="primary" htmlType="submit">
+              Add
+            </Button>
+          </div>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="Import Disbursed Awards (CSV)"
+        open={awardImportOpen}
+        onCancel={() => setAwardImportOpen(false)}
+        footer={null}
+        destroyOnClose
+      >
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+          Upload a CSV with headers like Donor Name, Award Name, Amount, Date
+          Disbursed, Notes. Only these fields are imported.
+        </Typography.Paragraph>
+        <Dragger
+          accept=".csv"
+          multiple={false}
+          showUploadList={false}
+          beforeUpload={async (file) => {
+            if (!organizationId) {
+              message.error("No organization");
+              return false;
+            }
+            try {
+              const text = await file.text();
+              const lines = text.split(/\r?\n/).filter(Boolean);
+              if (lines.length === 0) {
+                message.error("CSV is empty");
+                return false;
+              }
+              const [headerLine, ...rowsLines] = lines;
+              const headers = headerLine
+                .split(",")
+                .map((h) => h.trim().toLowerCase());
+              const idx = (label: string) =>
+                headers.findIndex((h) => h === label.toLowerCase());
+              const get = (cols: string[], i: number) =>
+                i >= 0 ? (cols[i] ?? "").trim() : "";
+              const iDonor = idx("donor name");
+              const iAward = idx("award name");
+              const iAmt = idx("amount");
+              const iDate = idx("date disbursed");
+              const iNotes = idx("notes");
+              const errors: string[] = [];
+              const payloads: any[] = [];
+              rowsLines.forEach((line, idxRow) => {
+                const rowNum = idxRow + 2;
+                const cols = line.split(",");
+                const donor = get(cols, iDonor);
+                const amtRaw = get(cols, iAmt);
+                const dateRaw = get(cols, iDate);
+                const amt = amtRaw ? Number(amtRaw.replace(/[$,]/g, "")) : null;
+                const date = dateRaw ? dateRaw : null;
+                if (!donor) errors.push(`Row ${rowNum}: Donor Name required`);
+                if (amtRaw && Number.isNaN(amt))
+                  errors.push(`Row ${rowNum}: Amount invalid`);
+                if (errors.length === 0) {
+                  payloads.push({
+                    donor_name: donor || null,
+                    award_name: get(cols, iAward) || null,
+                    amount: typeof amt === "number" ? amt : null,
+                    date_disbursed: date,
+                    notes: get(cols, iNotes) || null,
+                    organization_id: organizationId,
+                    user_id: user?.id ?? null,
+                  });
+                }
+              });
+              if (errors.length > 0) {
+                Modal.error({
+                  title: "Import blocked",
+                  content: errors
+                    .slice(0, 50)
+                    .map((e, i) => <div key={i}>{e}</div>),
+                });
+                return false;
+              }
+              if (payloads.length === 0) {
+                message.warning("No valid rows found");
+                return false;
+              }
+              const { error } = await supabase
+                .from("disbursed_awards")
+                .insert(payloads);
+              if (error) throw error;
+              await loadAwards(organizationId);
+              message.success(`Imported ${payloads.length} rows`);
+              setAwardImportOpen(false);
+            } catch {
+              message.error("Failed to import CSV");
+            }
+            return false;
+          }}
+          style={{ padding: 12 }}
+        >
+          <p className="ant-upload-drag-icon">📄</p>
+          <p className="ant-upload-text">Select from Local Computer</p>
+          <p className="ant-upload-hint">or drag and drop a .csv file here</p>
+        </Dragger>
       </Modal>
     </Card>
   );
