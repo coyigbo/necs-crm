@@ -18,7 +18,7 @@ import {
 } from "antd";
 import { LeftOutlined, RightOutlined, DownOutlined } from "@ant-design/icons";
 import { useEffect, useMemo, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { motion } from "framer-motion";
@@ -471,6 +471,19 @@ export default function ClosedClientFiles() {
     [rows, selectedYear]
   );
 
+  const renderNull = () => <span style={{ color: "#ef4444" }}>NULL</span>;
+
+  const displayOrNull = (value: any): ReactNode => {
+    if (
+      value === null ||
+      value === undefined ||
+      (typeof value === "string" && value.trim() === "")
+    ) {
+      return renderNull();
+    }
+    return value;
+  };
+
   const toTitleCase = (s: string) =>
     s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 
@@ -654,56 +667,64 @@ export default function ClosedClientFiles() {
             </div>
             <div>
               <Typography.Text type="secondary">Life Coach</Typography.Text>
-              <div>{selectedRow.life_coach ?? "—"}</div>
+              <div>{displayOrNull(selectedRow.life_coach)}</div>
             </div>
             <div>
               <Typography.Text type="secondary">Start Date</Typography.Text>
-              <div>{selectedRow.start_date ?? "—"}</div>
+              <div>{displayOrNull(selectedRow.start_date)}</div>
             </div>
             <div>
               <Typography.Text type="secondary">End Date</Typography.Text>
-              <div>{selectedRow.end_date ?? "—"}</div>
+              <div>{displayOrNull(selectedRow.end_date)}</div>
             </div>
             <div>
               <Typography.Text type="secondary">Area Office</Typography.Text>
               <div>
                 {selectedRow.area_office
                   ? toTitleCase(selectedRow.area_office)
-                  : "—"}
+                  : renderNull()}
               </div>
             </div>
             <div>
               <Typography.Text type="secondary">Race/Eth</Typography.Text>
               <div>
-                {selectedRow.race_eth ? toTitleCase(selectedRow.race_eth) : "—"}
+                {selectedRow.race_eth
+                  ? toTitleCase(selectedRow.race_eth)
+                  : renderNull()}
               </div>
             </div>
             <div>
               <Typography.Text type="secondary">Sex</Typography.Text>
-              <div>{selectedRow.sex ?? "—"}</div>
+              <div>{displayOrNull(selectedRow.sex)}</div>
             </div>
             <div>
               <Typography.Text type="secondary">Case</Typography.Text>
-              <div>{selectedRow.case_code ?? "—"}</div>
+              <div>{displayOrNull(selectedRow.case_code)}</div>
             </div>
             <div>
               <Typography.Text type="secondary">Age</Typography.Text>
-              <div>{selectedRow.age ?? "—"}</div>
+              <div>
+                {selectedRow.age === null || selectedRow.age === undefined
+                  ? renderNull()
+                  : selectedRow.age}
+              </div>
             </div>
             <div>
               <Typography.Text type="secondary">Hometown</Typography.Text>
               <div>
-                {selectedRow.hometown ? toTitleCase(selectedRow.hometown) : "—"}
+                {selectedRow.hometown
+                  ? toTitleCase(selectedRow.hometown)
+                  : renderNull()}
               </div>
             </div>
             <div>
               <Typography.Text type="secondary">Model</Typography.Text>
-              <div>{selectedRow.model ?? "—"}</div>
+              <div>{displayOrNull(selectedRow.model)}</div>
             </div>
             <div>
               <Typography.Text type="secondary">Notes</Typography.Text>
               <div style={{ whiteSpace: "pre-wrap" }}>
-                {selectedRow.notes ?? "—"}
+                {displayOrNull(selectedRow.notes)}
               </div>
             </div>
             <div>
@@ -885,19 +906,21 @@ export default function ClosedClientFiles() {
                 dataIndex: "start_date",
                 ellipsis: true,
                 onHeaderCell: () => ({ style: headerCellStyle }),
+                render: (value: string | null) => displayOrNull(value),
               },
               {
                 title: "End Date",
                 dataIndex: "end_date",
                 ellipsis: true,
                 onHeaderCell: () => ({ style: headerCellStyle }),
+                render: (value: string | null) => displayOrNull(value),
               },
               {
                 title: "Area Office",
                 dataIndex: "area_office",
                 ellipsis: true,
                 render: (value: string | null) =>
-                  value ? toTitleCase(String(value)) : value,
+                  value ? toTitleCase(String(value)) : renderNull(),
                 onHeaderCell: () => ({ style: headerCellStyle }),
               },
               {
@@ -906,7 +929,7 @@ export default function ClosedClientFiles() {
                 ellipsis: true,
                 onHeaderCell: () => ({ style: headerCellStyle }),
                 render: (value: string | null) =>
-                  value ? toTitleCase(String(value)) : value,
+                  value ? toTitleCase(String(value)) : renderNull(),
               },
               {
                 title: "Sex",
@@ -915,6 +938,7 @@ export default function ClosedClientFiles() {
                 width: 80,
                 align: "center",
                 onHeaderCell: () => ({ style: headerCellStyle }),
+                render: (value: string | null) => displayOrNull(value),
               },
               {
                 title: "Case",
@@ -923,6 +947,7 @@ export default function ClosedClientFiles() {
                 width: 100,
                 align: "center",
                 onHeaderCell: () => ({ style: headerCellStyle }),
+                render: (value: string | null) => displayOrNull(value),
               },
               {
                 title: "Age",
@@ -930,6 +955,8 @@ export default function ClosedClientFiles() {
                 width: 80,
                 align: "center",
                 onHeaderCell: () => ({ style: headerCellStyle }),
+                render: (value: number | null) =>
+                  value === null || value === undefined ? renderNull() : value,
               },
               {
                 title: "Hometown",
@@ -938,7 +965,7 @@ export default function ClosedClientFiles() {
                 align: "center",
                 onHeaderCell: () => ({ style: headerCellStyle }),
                 render: (value: string | null) =>
-                  value ? toTitleCase(String(value)) : value,
+                  value ? toTitleCase(String(value)) : renderNull(),
               },
               {
                 title: "Actions",

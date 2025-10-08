@@ -21,6 +21,7 @@ import { Upload } from "antd";
 const { Dragger } = Upload;
 import { useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../lib/supabaseClient";
 import { useOrg } from "../org/OrgProvider";
@@ -178,6 +179,17 @@ export default function Grantmaking() {
     };
   }, [organizationId]);
 
+  const headerCellStyle: CSSProperties = {
+    backgroundColor: "#f7f9fc",
+    fontWeight: 600,
+    textTransform: "uppercase",
+    fontSize: 12,
+    letterSpacing: 0.3,
+    color: "#344054",
+    borderBottom: "1px solid #e5e7eb",
+    textAlign: "center",
+  };
+
   return (
     <Card bordered={false}>
       <motion.div
@@ -270,8 +282,13 @@ export default function Grantmaking() {
                               <Table
                                 rowKey={(r) => r.id}
                                 dataSource={queued}
-                                pagination={false}
+                                pagination={{
+                                  pageSize: 10,
+                                  showSizeChanger: true,
+                                }}
                                 size="small"
+                                tableLayout="fixed"
+                                style={{ width: "100%" }}
                                 columns={(() => {
                                   const currency = new Intl.NumberFormat(
                                     "en-US",
@@ -285,32 +302,59 @@ export default function Grantmaking() {
                                     {
                                       title: "Donor Name",
                                       dataIndex: "donor_name",
-                                    },
-                                    {
-                                      title: "Created By",
-                                      render: (r: GrantItem) =>
-                                        (r as any)._creatorName || "—",
+                                      ellipsis: true,
+                                      align: "center",
+                                      onHeaderCell: () => ({
+                                        style: headerCellStyle,
+                                      }),
                                     },
                                     {
                                       title: "Date Opened",
                                       dataIndex: "date_opened",
                                       width: 120,
+                                      align: "center",
+                                      ellipsis: true,
+                                      onHeaderCell: () => ({
+                                        style: headerCellStyle,
+                                      }),
                                     },
                                     {
                                       title: "Date Due",
                                       dataIndex: "date_due",
                                       width: 120,
+                                      align: "center",
+                                      ellipsis: true,
+                                      onHeaderCell: () => ({
+                                        style: headerCellStyle,
+                                      }),
                                     },
                                     {
                                       title: "Report Due",
                                       dataIndex: "report_due",
                                       width: 120,
+                                      align: "center",
+                                      ellipsis: true,
+                                      onHeaderCell: () => ({
+                                        style: headerCellStyle,
+                                      }),
                                     },
-                                    { title: "Program", dataIndex: "program" },
+                                    {
+                                      title: "Program",
+                                      dataIndex: "program",
+                                      ellipsis: true,
+                                      align: "center",
+                                      onHeaderCell: () => ({
+                                        style: headerCellStyle,
+                                      }),
+                                    },
                                     {
                                       title: "Value",
                                       dataIndex: "value",
                                       width: 120,
+                                      align: "center",
+                                      onHeaderCell: () => ({
+                                        style: headerCellStyle,
+                                      }),
                                       render: (v: number | null) =>
                                         typeof v === "number"
                                           ? currency.format(v)
@@ -320,11 +364,28 @@ export default function Grantmaking() {
                                       title: "Region",
                                       dataIndex: "region",
                                       width: 140,
+                                      ellipsis: true,
+                                      align: "center",
+                                      onHeaderCell: () => ({
+                                        style: headerCellStyle,
+                                      }),
                                     },
-                                    { title: "Notes", dataIndex: "notes" },
+                                    {
+                                      title: "Notes",
+                                      dataIndex: "notes",
+                                      ellipsis: true,
+                                      align: "center",
+                                      onHeaderCell: () => ({
+                                        style: headerCellStyle,
+                                      }),
+                                    },
                                     {
                                       title: "Actions",
-                                      width: 200,
+                                      width: 160,
+                                      align: "center",
+                                      onHeaderCell: () => ({
+                                        style: headerCellStyle,
+                                      }),
                                       render: (r: GrantItem) => {
                                         const items: any[] = [
                                           {
@@ -469,15 +530,13 @@ export default function Grantmaking() {
                                 marginBottom: 6,
                               }}
                             >
-                              {appsView === "pending" && (
-                                <Button
-                                  type="primary"
-                                  danger
-                                  onClick={() => setAppImportOpen(true)}
-                                >
-                                  Import Data as CSV
-                                </Button>
-                              )}
+                              <Button
+                                type="primary"
+                                danger
+                                onClick={() => setAppImportOpen(true)}
+                              >
+                                Import Data as CSV
+                              </Button>
                               <Button
                                 type="primary"
                                 onClick={() => setCreateOpen(true)}
@@ -1440,7 +1499,8 @@ export default function Grantmaking() {
         <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
           Upload a CSV with headers matching the grants import schema
           (donor_name, date_opened, date_due, program, value, region, contact,
-          review_url, notes, date_submission, report_due, status).
+          review_url, notes, date_submission, report_due, status). All imported
+          rows will be queued.
         </Typography.Paragraph>
         <Dragger
           accept=".csv"
@@ -1509,7 +1569,7 @@ export default function Grantmaking() {
                   notes: get(cols, iNotes) || null,
                   date_submission,
                   report_due,
-                  status: get(cols, iStatus) || null,
+                  status: "Queued",
                 });
               });
               if (toInsert.length === 0) {
@@ -1519,9 +1579,10 @@ export default function Grantmaking() {
               const { error } = await supabase.from("grants").insert(
                 toInsert.map((r) => ({
                   ...r,
-                  status: "Pending Submission",
+                  status: "Queued",
                   date_submission: null,
                   organization_id: organizationId,
+                  user_id: user?.id ?? null,
                 }))
               );
               if (error) throw error;
