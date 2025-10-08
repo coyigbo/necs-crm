@@ -15,6 +15,7 @@ import {
   InputNumber,
   DatePicker,
   Dropdown,
+  Tabs,
 } from "antd";
 import { LeftOutlined, RightOutlined, DownOutlined } from "@ant-design/icons";
 import { useEffect, useMemo, useState } from "react";
@@ -25,6 +26,20 @@ import { motion } from "framer-motion";
 import { useOrg } from "../org/OrgProvider";
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  LineChart,
+  Line,
+} from "recharts";
 
 dayjs.extend(customParseFormat);
 
@@ -66,8 +81,130 @@ type AddFormValues = {
 
 const FIXED_YEARS = [2026, 2025, 2024, 2023, 2022, 2021, 2020];
 
+// Chart data processing functions
+const processChartData = (data: ClosedFileRow[]) => {
+  // Age distribution
+  const ageGroups = data.reduce((acc, row) => {
+    if (!row.age) return acc;
+    let group = "";
+    if (row.age <= 18) group = "0-18";
+    else if (row.age <= 25) group = "19-25";
+    else if (row.age <= 35) group = "26-35";
+    else if (row.age <= 50) group = "36-50";
+    else if (row.age <= 65) group = "51-65";
+    else group = "65+";
+
+    acc[group] = (acc[group] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const ageData = Object.entries(ageGroups).map(([age, count]) => ({
+    age,
+    count,
+  }));
+
+  // Race/Ethnicity distribution
+  const raceData = data.reduce((acc, row) => {
+    const race = row.race_eth || "Unknown";
+    acc[race] = (acc[race] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const raceChartData = Object.entries(raceData)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([race, count]) => ({ name: race, value: count }));
+
+  // Sex distribution
+  const sexData = data.reduce((acc, row) => {
+    const sex = row.sex || "Unknown";
+    acc[sex] = (acc[sex] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const sexChartData = Object.entries(sexData)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([sex, count]) => ({ name: sex, value: count }));
+
+  // Area Office distribution
+  const areaData = data.reduce((acc, row) => {
+    const area = row.area_office || "Unknown";
+    acc[area] = (acc[area] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const areaChartData = Object.entries(areaData)
+    .map(([area, count]) => ({ area, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10); // Top 10 areas
+
+  // Life Coach distribution
+  const coachData = data.reduce((acc, row) => {
+    const coach = row.life_coach || "Unknown";
+    acc[coach] = (acc[coach] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const coachChartData = Object.entries(coachData)
+    .map(([coach, count]) => ({ coach, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10); // Top 10 coaches
+
+  // Hometowns (top 10)
+  const hometownData = data.reduce((acc, row) => {
+    const town = row.hometown || "Unknown";
+    acc[town] = (acc[town] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const hometownChartData = Object.entries(hometownData)
+    .map(([hometown, count]) => ({ hometown, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+
+  // KPI metrics
+  const ages = data
+    .map((r) => r.age)
+    .filter((a): a is number => typeof a === "number" && Number.isFinite(a))
+    .sort((a, b) => a - b);
+  const avgAge = ages.length
+    ? Math.round(ages.reduce((a, b) => a + b, 0) / ages.length)
+    : null;
+  const medianAge = ages.length
+    ? ages.length % 2 === 1
+      ? ages[(ages.length - 1) / 2]
+      : Math.round((ages[ages.length / 2 - 1] + ages[ages.length / 2]) / 2)
+    : null;
+  const uniqueCoaches = Object.keys(coachData).length;
+  const uniqueAreas = Object.keys(areaData).length;
+
+  return {
+    ageData,
+    raceChartData,
+    sexChartData,
+    areaChartData,
+    coachChartData,
+    hometownChartData,
+    avgAge,
+    medianAge,
+    uniqueCoaches,
+    uniqueAreas,
+  };
+};
+
+const COLORS = [
+  "#8884d8",
+  "#82ca9d",
+  "#ffc658",
+  "#ff7c7c",
+  "#8dd1e1",
+  "#d084d0",
+];
+
 export default function ClosedClientFiles() {
   const [params, setParams] = useSearchParams();
+  const activeTab = params.get("tab") || "data";
   const [rows, setRows] = useState<ClosedFileRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -471,6 +608,32 @@ export default function ClosedClientFiles() {
     [rows, selectedYear]
   );
 
+  const [vizYear, setVizYear] = useState<string>("all");
+
+  const dataForVisualization = useMemo(() => {
+    if (!rows) return [];
+    if (vizYear === "all") return rows;
+    return rows.filter((r) => r.year === Number(vizYear));
+  }, [rows, vizYear]);
+
+  const chartData = useMemo(() => {
+    if (!dataForVisualization || dataForVisualization.length === 0) {
+      return {
+        ageData: [],
+        raceChartData: [],
+        sexChartData: [],
+        areaChartData: [],
+        coachChartData: [],
+        hometownChartData: [],
+        avgAge: null,
+        medianAge: null,
+        uniqueCoaches: 0,
+        uniqueAreas: 0,
+      };
+    }
+    return processChartData(dataForVisualization);
+  }, [dataForVisualization]);
+
   const renderNull = () => <span style={{ color: "#ef4444" }}>NULL</span>;
 
   const displayOrNull = (value: any): ReactNode => {
@@ -507,529 +670,828 @@ export default function ClosedClientFiles() {
         Closed Client Files
       </Typography.Title>
       <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-        Organized by year
+        Manage client data and view demographic insights.
       </Typography.Paragraph>
 
-      <Flex align="center" gap={8} style={{ marginBottom: 16 }}>
-        <Button icon={<LeftOutlined />} onClick={onPrev} disabled={!canPrev} />
-        <Segmented
-          value={selectedYear}
-          onChange={(v) => setYear(Number(v))}
-          options={years.map((y) => ({
-            value: y,
-            label: (
-              <span>
-                {`FY${y}`}{" "}
-                <Typography.Text type="secondary">
-                  ({countsByYear.get(y) ?? 0})
-                </Typography.Text>
-              </span>
-            ),
-          }))}
-          style={{ maxWidth: "100%", overflowX: "auto" }}
-        />
-        <Button icon={<RightOutlined />} onClick={onNext} disabled={!canNext} />
-        <div style={{ marginLeft: "auto" }} />
-        <Button onClick={exportCsv}>Export CSV</Button>
-        <Button onClick={() => setAddOpen(true)}>Add Record</Button>
-        <Button type="primary" danger onClick={() => setImportOpen(true)}>
-          Import Data as CSV
-        </Button>
-      </Flex>
+      <Tabs
+        activeKey={activeTab}
+        onChange={(k) => {
+          const next = new URLSearchParams(params);
+          next.set("tab", k);
+          setParams(next);
+        }}
+        items={[
+          { key: "data", label: "Data" },
+          { key: "visualizations", label: "Visualizations" },
+        ]}
+        style={{ marginBottom: 16 }}
+      />
 
-      <Modal
-        title="Import Closed Client Files"
-        open={importOpen}
-        onCancel={() => setImportOpen(false)}
-        footer={null}
-        destroyOnClose
-      >
-        <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-          Upload a CSV with the correct headers. Optionally set a year to apply
-          to all rows.
-        </Typography.Paragraph>
-        <div style={{ marginBottom: 12 }}>
-          <InputNumber
-            style={{ width: 200 }}
-            min={2000}
-            max={2100}
-            placeholder={String(selectedYear)}
-            value={importYear}
-            onChange={(v) =>
-              setImportYear(typeof v === "number" ? v : undefined)
-            }
-          />
-        </div>
-        <Dragger
-          accept=".csv"
-          multiple={false}
-          showUploadList={false}
-          beforeUpload={(file) => {
-            parseCsv(file);
-            return false;
-          }}
-          style={{ padding: 12 }}
-        >
-          <p className="ant-upload-drag-icon">📄</p>
-          <p className="ant-upload-text">Select from Local Computer</p>
-          <p className="ant-upload-hint">or drag and drop a .csv file here</p>
-        </Dragger>
-      </Modal>
-
-      <Modal
-        title="Add Record"
-        open={addOpen}
-        onCancel={() => setAddOpen(false)}
-        footer={null}
-        destroyOnClose
-      >
-        <Form
-          form={addForm}
-          layout="vertical"
-          onFinish={onAddRecord}
-          requiredMark={false}
-        >
-          <Form.Item
-            name="client_name"
-            label="Client Name"
-            rules={[{ required: true }]}
-          >
-            <Input placeholder="Client Name" />
-          </Form.Item>
-          <Form.Item name="life_coach" label="Life Coach">
-            <Input placeholder="Life Coach" />
-          </Form.Item>
-          <Form.Item name="start_date" label="Start Date">
-            <DatePicker style={{ width: "100%" }} />
-          </Form.Item>
-          <Form.Item name="end_date" label="End Date">
-            <DatePicker style={{ width: "100%" }} />
-          </Form.Item>
-          <Form.Item name="area_office" label="Area Office">
-            <Input placeholder="Area Office" />
-          </Form.Item>
-          <Form.Item name="race_eth" label="Race/Eth">
-            <Input placeholder="Race/Eth" />
-          </Form.Item>
-          <Form.Item name="sex" label="Sex">
-            <Input placeholder="Sex" />
-          </Form.Item>
-          <Form.Item name="case_code" label="Case Code">
-            <Input placeholder="Case" />
-          </Form.Item>
-          <Form.Item name="age" label="Age">
-            <InputNumber style={{ width: "100%" }} min={0} />
-          </Form.Item>
-          <Form.Item name="hometown" label="Hometown">
-            <Input placeholder="Hometown" />
-          </Form.Item>
-          <Form.Item name="model" label="Model">
-            <Input placeholder="Model" />
-          </Form.Item>
-          <Form.Item name="notes" label="Notes">
-            <Input.TextArea placeholder="Notes" rows={3} />
-          </Form.Item>
-          <Form.Item
-            name="year"
-            label="Year"
-            rules={[{ required: true, type: "number" }]}
-          >
-            <InputNumber
-              style={{ width: "100%" }}
-              min={2000}
-              max={2100}
-              placeholder={String(selectedYear)}
+      {activeTab === "data" && (
+        <>
+          <Flex align="center" gap={8} style={{ marginBottom: 16 }}>
+            <Button
+              icon={<LeftOutlined />}
+              onClick={onPrev}
+              disabled={!canPrev}
             />
-          </Form.Item>
-          <Flex gap={8} justify="flex-end">
-            <Button onClick={() => setAddOpen(false)}>Cancel</Button>
-            <Button type="primary" htmlType="submit">
-              Add
+            <Segmented
+              value={selectedYear}
+              onChange={(v) => setYear(Number(v))}
+              options={years.map((y) => ({
+                value: y,
+                label: (
+                  <span>
+                    {`FY${y}`}{" "}
+                    <Typography.Text type="secondary">
+                      ({countsByYear.get(y) ?? 0})
+                    </Typography.Text>
+                  </span>
+                ),
+              }))}
+              style={{ maxWidth: "100%", overflowX: "auto" }}
+            />
+            <Button
+              icon={<RightOutlined />}
+              onClick={onNext}
+              disabled={!canNext}
+            />
+            <div style={{ marginLeft: "auto" }} />
+            <Button onClick={exportCsv}>Export CSV</Button>
+            <Button onClick={() => setAddOpen(true)}>Add Record</Button>
+            <Button type="primary" danger onClick={() => setImportOpen(true)}>
+              Import Data as CSV
             </Button>
           </Flex>
-        </Form>
-      </Modal>
 
-      <Modal
-        title={selectedRow ? selectedRow.client_name : "Client Details"}
-        open={!!selectedRow}
-        onCancel={() => setSelectedRow(null)}
-        footer={null}
-        destroyOnClose
-      >
-        {selectedRow && (
-          <div
-            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
+          <Modal
+            title="Import Closed Client Files"
+            open={importOpen}
+            onCancel={() => setImportOpen(false)}
+            footer={null}
+            destroyOnClose
           >
-            <div>
-              <Typography.Text type="secondary">Client Name</Typography.Text>
-              <div>{selectedRow.client_name}</div>
-            </div>
-            <div>
-              <Typography.Text type="secondary">Life Coach</Typography.Text>
-              <div>{displayOrNull(selectedRow.life_coach)}</div>
-            </div>
-            <div>
-              <Typography.Text type="secondary">Start Date</Typography.Text>
-              <div>{displayOrNull(selectedRow.start_date)}</div>
-            </div>
-            <div>
-              <Typography.Text type="secondary">End Date</Typography.Text>
-              <div>{displayOrNull(selectedRow.end_date)}</div>
-            </div>
-            <div>
-              <Typography.Text type="secondary">Area Office</Typography.Text>
-              <div>
-                {selectedRow.area_office
-                  ? toTitleCase(selectedRow.area_office)
-                  : renderNull()}
-              </div>
-            </div>
-            <div>
-              <Typography.Text type="secondary">Race/Eth</Typography.Text>
-              <div>
-                {selectedRow.race_eth
-                  ? toTitleCase(selectedRow.race_eth)
-                  : renderNull()}
-              </div>
-            </div>
-            <div>
-              <Typography.Text type="secondary">Sex</Typography.Text>
-              <div>{displayOrNull(selectedRow.sex)}</div>
-            </div>
-            <div>
-              <Typography.Text type="secondary">Case</Typography.Text>
-              <div>{displayOrNull(selectedRow.case_code)}</div>
-            </div>
-            <div>
-              <Typography.Text type="secondary">Age</Typography.Text>
-              <div>
-                {selectedRow.age === null || selectedRow.age === undefined
-                  ? renderNull()
-                  : selectedRow.age}
-              </div>
-            </div>
-            <div>
-              <Typography.Text type="secondary">Hometown</Typography.Text>
-              <div>
-                {selectedRow.hometown
-                  ? toTitleCase(selectedRow.hometown)
-                  : renderNull()}
-              </div>
-            </div>
-            <div>
-              <Typography.Text type="secondary">Model</Typography.Text>
-              <div>{displayOrNull(selectedRow.model)}</div>
-            </div>
-            <div>
-              <Typography.Text type="secondary">Notes</Typography.Text>
-              <div style={{ whiteSpace: "pre-wrap" }}>
-                {displayOrNull(selectedRow.notes)}
-              </div>
-            </div>
-            <div>
-              <Typography.Text type="secondary">Year</Typography.Text>
-              <div>{selectedRow.year}</div>
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      <Modal
-        title={selectedRow ? `Edit: ${selectedRow.client_name}` : "Edit Record"}
-        open={editOpen}
-        onCancel={() => setEditOpen(false)}
-        footer={null}
-        destroyOnClose
-      >
-        <Form
-          form={editForm}
-          layout="vertical"
-          onFinish={async (values: AddFormValues) => {
-            if (!organizationId || !selectedRow) {
-              message.error("No organization or record");
-              return;
-            }
-            try {
-              const payload = {
-                client_name: values.client_name,
-                life_coach: values.life_coach ?? null,
-                start_date: values.start_date
-                  ? values.start_date.format("YYYY-MM-DD")
-                  : null,
-                end_date: values.end_date
-                  ? values.end_date.format("YYYY-MM-DD")
-                  : null,
-                area_office: values.area_office ?? null,
-                race_eth: values.race_eth ?? null,
-                sex: values.sex ?? null,
-                case_code: values.case_code ?? null,
-                age: typeof values.age === "number" ? values.age : null,
-                hometown: values.hometown ?? null,
-                model: values.model ?? null,
-                notes: values.notes ?? null,
-                year: values.year,
-              };
-              const { error } = await supabase
-                .from("closed_client_files")
-                .update(payload)
-                .eq("id", selectedRow.id)
-                .eq("organization_id", organizationId);
-              if (error) throw error;
-              await refresh();
-              message.success("Record updated");
-              setEditOpen(false);
-            } catch (e) {
-              message.error("Failed to update record");
-            }
-          }}
-          requiredMark={false}
-        >
-          <Form.Item
-            name="client_name"
-            label="Client Name"
-            rules={[{ required: true }]}
-          >
-            <Input placeholder="Client Name" />
-          </Form.Item>
-          <Form.Item name="life_coach" label="Life Coach">
-            <Input placeholder="Life Coach" />
-          </Form.Item>
-          <Form.Item name="start_date" label="Start Date">
-            <DatePicker style={{ width: "100%" }} />
-          </Form.Item>
-          <Form.Item name="end_date" label="End Date">
-            <DatePicker style={{ width: "100%" }} />
-          </Form.Item>
-          <Form.Item name="area_office" label="Area Office">
-            <Input placeholder="Area Office" />
-          </Form.Item>
-          <Form.Item name="race_eth" label="Race/Eth">
-            <Input placeholder="Race/Eth" />
-          </Form.Item>
-          <Form.Item name="sex" label="Sex">
-            <Input placeholder="Sex" />
-          </Form.Item>
-          <Form.Item name="case_code" label="Case Code">
-            <Input placeholder="Case" />
-          </Form.Item>
-          <Form.Item name="age" label="Age">
-            <InputNumber style={{ width: "100%" }} min={0} />
-          </Form.Item>
-          <Form.Item name="hometown" label="Hometown">
-            <Input placeholder="Hometown" />
-          </Form.Item>
-          <Form.Item name="model" label="Model">
-            <Input placeholder="Model" />
-          </Form.Item>
-          <Form.Item name="notes" label="Notes">
-            <Input.TextArea placeholder="Notes" rows={3} />
-          </Form.Item>
-          <Form.Item
-            name="year"
-            label="Year"
-            rules={[{ required: true, type: "number" }]}
-          >
-            <InputNumber
-              style={{ width: "100%" }}
-              min={2000}
-              max={2100}
-              placeholder={String(selectedYear)}
-            />
-          </Form.Item>
-          <Flex gap={8} justify="flex-end">
-            <Button onClick={() => setEditOpen(false)}>Cancel</Button>
-            <Button type="primary" htmlType="submit">
-              Save Changes
-            </Button>
-          </Flex>
-        </Form>
-      </Modal>
-
-      {error && (
-        <Alert
-          type="error"
-          showIcon
-          message="Failed to load files"
-          description={error}
-          style={{ marginBottom: 12 }}
-        />
-      )}
-      {rows === null ? (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 48,
-          }}
-        >
-          <Spin />
-        </div>
-      ) : (
-        <motion.div
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.22 }}
-        >
-          <Table
-            rowKey={(r) => r.id}
-            dataSource={dataForYear}
-            pagination={{
-              current: page,
-              pageSize,
-              showSizeChanger: true,
-              onChange: (nextPage, nextPageSize) => {
-                if (
-                  typeof nextPageSize === "number" &&
-                  nextPageSize !== pageSize
-                ) {
-                  setPageSize(nextPageSize);
-                  setPage(1);
-                } else {
-                  setPage(nextPage);
+            <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+              Upload a CSV with the correct headers. Optionally set a year to
+              apply to all rows.
+            </Typography.Paragraph>
+            <div style={{ marginBottom: 12 }}>
+              <InputNumber
+                style={{ width: 200 }}
+                min={2000}
+                max={2100}
+                placeholder={String(selectedYear)}
+                value={importYear}
+                onChange={(v) =>
+                  setImportYear(typeof v === "number" ? v : undefined)
                 }
-              },
-            }}
-            scroll={undefined}
-            tableLayout="fixed"
-            style={{ width: "100%" }}
-            columns={[
-              {
-                title: "Client Name",
-                dataIndex: "client_name",
-                ellipsis: true,
-                onHeaderCell: () => ({ style: headerCellStyle }),
-              },
-              {
-                title: "Start Date",
-                dataIndex: "start_date",
-                ellipsis: true,
-                onHeaderCell: () => ({ style: headerCellStyle }),
-                render: (value: string | null) => displayOrNull(value),
-              },
-              {
-                title: "End Date",
-                dataIndex: "end_date",
-                ellipsis: true,
-                onHeaderCell: () => ({ style: headerCellStyle }),
-                render: (value: string | null) => displayOrNull(value),
-              },
-              {
-                title: "Area Office",
-                dataIndex: "area_office",
-                ellipsis: true,
-                render: (value: string | null) =>
-                  value ? toTitleCase(String(value)) : renderNull(),
-                onHeaderCell: () => ({ style: headerCellStyle }),
-              },
-              {
-                title: "Race/Eth",
-                dataIndex: "race_eth",
-                ellipsis: true,
-                onHeaderCell: () => ({ style: headerCellStyle }),
-                render: (value: string | null) =>
-                  value ? toTitleCase(String(value)) : renderNull(),
-              },
-              {
-                title: "Sex",
-                dataIndex: "sex",
-                ellipsis: true,
-                width: 80,
-                align: "center",
-                onHeaderCell: () => ({ style: headerCellStyle }),
-                render: (value: string | null) => displayOrNull(value),
-              },
-              {
-                title: "Case",
-                dataIndex: "case_code",
-                ellipsis: true,
-                width: 100,
-                align: "center",
-                onHeaderCell: () => ({ style: headerCellStyle }),
-                render: (value: string | null) => displayOrNull(value),
-              },
-              {
-                title: "Age",
-                dataIndex: "age",
-                width: 80,
-                align: "center",
-                onHeaderCell: () => ({ style: headerCellStyle }),
-                render: (value: number | null) =>
-                  value === null || value === undefined ? renderNull() : value,
-              },
-              {
-                title: "Hometown",
-                dataIndex: "hometown",
-                ellipsis: true,
-                align: "center",
-                onHeaderCell: () => ({ style: headerCellStyle }),
-                render: (value: string | null) =>
-                  value ? toTitleCase(String(value)) : renderNull(),
-              },
-              {
-                title: "Actions",
-                width: 120,
-                onHeaderCell: () => ({ style: headerCellStyle }),
-                render: (_, record) => {
-                  const items = [
-                    { key: "view", label: "View Details" },
-                    { key: "edit", label: "Edit" },
-                  ];
-                  return (
-                    <Dropdown
-                      menu={{
-                        items,
-                        onClick: ({ key }) => {
-                          if (key === "view") {
-                            setSelectedRow(record);
-                          } else if (key === "edit") {
-                            setSelectedRow(record);
-                            editForm.setFieldsValue({
-                              client_name: record.client_name,
-                              life_coach: record.life_coach ?? undefined,
-                              start_date: record.start_date
-                                ? dayjs(record.start_date)
-                                : undefined,
-                              end_date: record.end_date
-                                ? dayjs(record.end_date)
-                                : undefined,
-                              area_office: record.area_office ?? undefined,
-                              race_eth: record.race_eth ?? undefined,
-                              sex: record.sex ?? undefined,
-                              case_code: record.case_code ?? undefined,
-                              age: record.age ?? undefined,
-                              hometown: record.hometown ?? undefined,
-                              model: record.model ?? undefined,
-                              notes: record.notes ?? undefined,
-                              year: record.year,
-                            });
-                            setEditOpen(true);
-                          }
-                        },
-                      }}
-                      placement="bottomRight"
-                      trigger={["click"]}
-                    >
-                      <Button
-                        type="primary"
-                        danger
-                        size="small"
-                        onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+            <Dragger
+              accept=".csv"
+              multiple={false}
+              showUploadList={false}
+              beforeUpload={(file) => {
+                parseCsv(file);
+                return false;
+              }}
+              style={{ padding: 12 }}
+            >
+              <p className="ant-upload-drag-icon">📄</p>
+              <p className="ant-upload-text">Select from Local Computer</p>
+              <p className="ant-upload-hint">
+                or drag and drop a .csv file here
+              </p>
+            </Dragger>
+          </Modal>
+
+          <Modal
+            title="Add Record"
+            open={addOpen}
+            onCancel={() => setAddOpen(false)}
+            footer={null}
+            destroyOnClose
+          >
+            <Form
+              form={addForm}
+              layout="vertical"
+              onFinish={onAddRecord}
+              requiredMark={false}
+            >
+              <Form.Item
+                name="client_name"
+                label="Client Name"
+                rules={[{ required: true }]}
+              >
+                <Input placeholder="Client Name" />
+              </Form.Item>
+              <Form.Item name="life_coach" label="Life Coach">
+                <Input placeholder="Life Coach" />
+              </Form.Item>
+              <Form.Item name="start_date" label="Start Date">
+                <DatePicker style={{ width: "100%" }} />
+              </Form.Item>
+              <Form.Item name="end_date" label="End Date">
+                <DatePicker style={{ width: "100%" }} />
+              </Form.Item>
+              <Form.Item name="area_office" label="Area Office">
+                <Input placeholder="Area Office" />
+              </Form.Item>
+              <Form.Item name="race_eth" label="Race/Eth">
+                <Input placeholder="Race/Eth" />
+              </Form.Item>
+              <Form.Item name="sex" label="Sex">
+                <Input placeholder="Sex" />
+              </Form.Item>
+              <Form.Item name="case_code" label="Case Code">
+                <Input placeholder="Case" />
+              </Form.Item>
+              <Form.Item name="age" label="Age">
+                <InputNumber style={{ width: "100%" }} min={0} />
+              </Form.Item>
+              <Form.Item name="hometown" label="Hometown">
+                <Input placeholder="Hometown" />
+              </Form.Item>
+              <Form.Item name="model" label="Model">
+                <Input placeholder="Model" />
+              </Form.Item>
+              <Form.Item name="notes" label="Notes">
+                <Input.TextArea placeholder="Notes" rows={3} />
+              </Form.Item>
+              <Form.Item
+                name="year"
+                label="Year"
+                rules={[{ required: true, type: "number" }]}
+              >
+                <InputNumber
+                  style={{ width: "100%" }}
+                  min={2000}
+                  max={2100}
+                  placeholder={String(selectedYear)}
+                />
+              </Form.Item>
+              <Flex gap={8} justify="flex-end">
+                <Button onClick={() => setAddOpen(false)}>Cancel</Button>
+                <Button type="primary" htmlType="submit">
+                  Add
+                </Button>
+              </Flex>
+            </Form>
+          </Modal>
+
+          <Modal
+            title={selectedRow ? selectedRow.client_name : "Client Details"}
+            open={!!selectedRow}
+            onCancel={() => setSelectedRow(null)}
+            footer={null}
+            destroyOnClose
+          >
+            {selectedRow && (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 12,
+                }}
+              >
+                <div>
+                  <Typography.Text type="secondary">
+                    Client Name
+                  </Typography.Text>
+                  <div>{selectedRow.client_name}</div>
+                </div>
+                <div>
+                  <Typography.Text type="secondary">Life Coach</Typography.Text>
+                  <div>{displayOrNull(selectedRow.life_coach)}</div>
+                </div>
+                <div>
+                  <Typography.Text type="secondary">Start Date</Typography.Text>
+                  <div>{displayOrNull(selectedRow.start_date)}</div>
+                </div>
+                <div>
+                  <Typography.Text type="secondary">End Date</Typography.Text>
+                  <div>{displayOrNull(selectedRow.end_date)}</div>
+                </div>
+                <div>
+                  <Typography.Text type="secondary">
+                    Area Office
+                  </Typography.Text>
+                  <div>
+                    {selectedRow.area_office
+                      ? toTitleCase(selectedRow.area_office)
+                      : renderNull()}
+                  </div>
+                </div>
+                <div>
+                  <Typography.Text type="secondary">Race/Eth</Typography.Text>
+                  <div>
+                    {selectedRow.race_eth
+                      ? toTitleCase(selectedRow.race_eth)
+                      : renderNull()}
+                  </div>
+                </div>
+                <div>
+                  <Typography.Text type="secondary">Sex</Typography.Text>
+                  <div>{displayOrNull(selectedRow.sex)}</div>
+                </div>
+                <div>
+                  <Typography.Text type="secondary">Case</Typography.Text>
+                  <div>{displayOrNull(selectedRow.case_code)}</div>
+                </div>
+                <div>
+                  <Typography.Text type="secondary">Age</Typography.Text>
+                  <div>
+                    {selectedRow.age === null || selectedRow.age === undefined
+                      ? renderNull()
+                      : selectedRow.age}
+                  </div>
+                </div>
+                <div>
+                  <Typography.Text type="secondary">Hometown</Typography.Text>
+                  <div>
+                    {selectedRow.hometown
+                      ? toTitleCase(selectedRow.hometown)
+                      : renderNull()}
+                  </div>
+                </div>
+                <div>
+                  <Typography.Text type="secondary">Model</Typography.Text>
+                  <div>{displayOrNull(selectedRow.model)}</div>
+                </div>
+                <div>
+                  <Typography.Text type="secondary">Notes</Typography.Text>
+                  <div style={{ whiteSpace: "pre-wrap" }}>
+                    {displayOrNull(selectedRow.notes)}
+                  </div>
+                </div>
+                <div>
+                  <Typography.Text type="secondary">Year</Typography.Text>
+                  <div>{selectedRow.year}</div>
+                </div>
+              </div>
+            )}
+          </Modal>
+
+          <Modal
+            title={
+              selectedRow ? `Edit: ${selectedRow.client_name}` : "Edit Record"
+            }
+            open={editOpen}
+            onCancel={() => setEditOpen(false)}
+            footer={null}
+            destroyOnClose
+          >
+            <Form
+              form={editForm}
+              layout="vertical"
+              onFinish={async (values: AddFormValues) => {
+                if (!organizationId || !selectedRow) {
+                  message.error("No organization or record");
+                  return;
+                }
+                try {
+                  const payload = {
+                    client_name: values.client_name,
+                    life_coach: values.life_coach ?? null,
+                    start_date: values.start_date
+                      ? values.start_date.format("YYYY-MM-DD")
+                      : null,
+                    end_date: values.end_date
+                      ? values.end_date.format("YYYY-MM-DD")
+                      : null,
+                    area_office: values.area_office ?? null,
+                    race_eth: values.race_eth ?? null,
+                    sex: values.sex ?? null,
+                    case_code: values.case_code ?? null,
+                    age: typeof values.age === "number" ? values.age : null,
+                    hometown: values.hometown ?? null,
+                    model: values.model ?? null,
+                    notes: values.notes ?? null,
+                    year: values.year,
+                  };
+                  const { error } = await supabase
+                    .from("closed_client_files")
+                    .update(payload)
+                    .eq("id", selectedRow.id)
+                    .eq("organization_id", organizationId);
+                  if (error) throw error;
+                  await refresh();
+                  message.success("Record updated");
+                  setEditOpen(false);
+                } catch (e) {
+                  message.error("Failed to update record");
+                }
+              }}
+              requiredMark={false}
+            >
+              <Form.Item
+                name="client_name"
+                label="Client Name"
+                rules={[{ required: true }]}
+              >
+                <Input placeholder="Client Name" />
+              </Form.Item>
+              <Form.Item name="life_coach" label="Life Coach">
+                <Input placeholder="Life Coach" />
+              </Form.Item>
+              <Form.Item name="start_date" label="Start Date">
+                <DatePicker style={{ width: "100%" }} />
+              </Form.Item>
+              <Form.Item name="end_date" label="End Date">
+                <DatePicker style={{ width: "100%" }} />
+              </Form.Item>
+              <Form.Item name="area_office" label="Area Office">
+                <Input placeholder="Area Office" />
+              </Form.Item>
+              <Form.Item name="race_eth" label="Race/Eth">
+                <Input placeholder="Race/Eth" />
+              </Form.Item>
+              <Form.Item name="sex" label="Sex">
+                <Input placeholder="Sex" />
+              </Form.Item>
+              <Form.Item name="case_code" label="Case Code">
+                <Input placeholder="Case" />
+              </Form.Item>
+              <Form.Item name="age" label="Age">
+                <InputNumber style={{ width: "100%" }} min={0} />
+              </Form.Item>
+              <Form.Item name="hometown" label="Hometown">
+                <Input placeholder="Hometown" />
+              </Form.Item>
+              <Form.Item name="model" label="Model">
+                <Input placeholder="Model" />
+              </Form.Item>
+              <Form.Item name="notes" label="Notes">
+                <Input.TextArea placeholder="Notes" rows={3} />
+              </Form.Item>
+              <Form.Item
+                name="year"
+                label="Year"
+                rules={[{ required: true, type: "number" }]}
+              >
+                <InputNumber
+                  style={{ width: "100%" }}
+                  min={2000}
+                  max={2100}
+                  placeholder={String(selectedYear)}
+                />
+              </Form.Item>
+              <Flex gap={8} justify="flex-end">
+                <Button onClick={() => setEditOpen(false)}>Cancel</Button>
+                <Button type="primary" htmlType="submit">
+                  Save Changes
+                </Button>
+              </Flex>
+            </Form>
+          </Modal>
+
+          {error && (
+            <Alert
+              type="error"
+              showIcon
+              message="Failed to load files"
+              description={error}
+              style={{ marginBottom: 12 }}
+            />
+          )}
+          {rows === null ? (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 48,
+              }}
+            >
+              <Spin />
+            </div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.22 }}
+            >
+              <Table
+                rowKey={(r) => r.id}
+                dataSource={dataForYear}
+                pagination={{
+                  current: page,
+                  pageSize,
+                  showSizeChanger: true,
+                  onChange: (nextPage, nextPageSize) => {
+                    if (
+                      typeof nextPageSize === "number" &&
+                      nextPageSize !== pageSize
+                    ) {
+                      setPageSize(nextPageSize);
+                      setPage(1);
+                    } else {
+                      setPage(nextPage);
+                    }
+                  },
+                }}
+                scroll={undefined}
+                tableLayout="fixed"
+                style={{ width: "100%" }}
+                columns={[
+                  {
+                    title: "Client Name",
+                    dataIndex: "client_name",
+                    ellipsis: true,
+                    onHeaderCell: () => ({ style: headerCellStyle }),
+                  },
+                  {
+                    title: "Start Date",
+                    dataIndex: "start_date",
+                    ellipsis: true,
+                    onHeaderCell: () => ({ style: headerCellStyle }),
+                    render: (value: string | null) => displayOrNull(value),
+                  },
+                  {
+                    title: "End Date",
+                    dataIndex: "end_date",
+                    ellipsis: true,
+                    onHeaderCell: () => ({ style: headerCellStyle }),
+                    render: (value: string | null) => displayOrNull(value),
+                  },
+                  {
+                    title: "Area Office",
+                    dataIndex: "area_office",
+                    ellipsis: true,
+                    render: (value: string | null) =>
+                      value ? toTitleCase(String(value)) : renderNull(),
+                    onHeaderCell: () => ({ style: headerCellStyle }),
+                  },
+                  {
+                    title: "Race/Eth",
+                    dataIndex: "race_eth",
+                    ellipsis: true,
+                    onHeaderCell: () => ({ style: headerCellStyle }),
+                    render: (value: string | null) =>
+                      value ? toTitleCase(String(value)) : renderNull(),
+                  },
+                  {
+                    title: "Sex",
+                    dataIndex: "sex",
+                    ellipsis: true,
+                    width: 80,
+                    align: "center",
+                    onHeaderCell: () => ({ style: headerCellStyle }),
+                    render: (value: string | null) => displayOrNull(value),
+                  },
+                  {
+                    title: "Case",
+                    dataIndex: "case_code",
+                    ellipsis: true,
+                    width: 100,
+                    align: "center",
+                    onHeaderCell: () => ({ style: headerCellStyle }),
+                    render: (value: string | null) => displayOrNull(value),
+                  },
+                  {
+                    title: "Age",
+                    dataIndex: "age",
+                    width: 80,
+                    align: "center",
+                    onHeaderCell: () => ({ style: headerCellStyle }),
+                    render: (value: number | null) =>
+                      value === null || value === undefined
+                        ? renderNull()
+                        : value,
+                  },
+                  {
+                    title: "Hometown",
+                    dataIndex: "hometown",
+                    ellipsis: true,
+                    align: "center",
+                    onHeaderCell: () => ({ style: headerCellStyle }),
+                    render: (value: string | null) =>
+                      value ? toTitleCase(String(value)) : renderNull(),
+                  },
+                  {
+                    title: "Actions",
+                    width: 120,
+                    onHeaderCell: () => ({ style: headerCellStyle }),
+                    render: (_, record) => {
+                      const items = [
+                        { key: "view", label: "View Details" },
+                        { key: "edit", label: "Edit" },
+                      ];
+                      return (
+                        <Dropdown
+                          menu={{
+                            items,
+                            onClick: ({ key }) => {
+                              if (key === "view") {
+                                setSelectedRow(record);
+                              } else if (key === "edit") {
+                                setSelectedRow(record);
+                                editForm.setFieldsValue({
+                                  client_name: record.client_name,
+                                  life_coach: record.life_coach ?? undefined,
+                                  start_date: record.start_date
+                                    ? dayjs(record.start_date)
+                                    : undefined,
+                                  end_date: record.end_date
+                                    ? dayjs(record.end_date)
+                                    : undefined,
+                                  area_office: record.area_office ?? undefined,
+                                  race_eth: record.race_eth ?? undefined,
+                                  sex: record.sex ?? undefined,
+                                  case_code: record.case_code ?? undefined,
+                                  age: record.age ?? undefined,
+                                  hometown: record.hometown ?? undefined,
+                                  model: record.model ?? undefined,
+                                  notes: record.notes ?? undefined,
+                                  year: record.year,
+                                });
+                                setEditOpen(true);
+                              }
+                            },
+                          }}
+                          placement="bottomRight"
+                          trigger={["click"]}
+                        >
+                          <Button
+                            type="primary"
+                            danger
+                            size="small"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Actions <DownOutlined />
+                          </Button>
+                        </Dropdown>
+                      );
+                    },
+                  },
+                ]}
+                onRow={(record) => ({
+                  onClick: () => setSelectedRow(record),
+                  style: { cursor: "pointer" },
+                })}
+              />
+            </motion.div>
+          )}
+        </>
+      )}
+
+      {activeTab === "visualizations" && (
+        <div>
+          <Typography.Title level={4}>Demographic Analytics</Typography.Title>
+          <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
+            Insights and trends from your client data.
+          </Typography.Paragraph>
+
+          <div style={{ marginBottom: 24 }}>
+            <Typography.Text strong style={{ marginRight: 12 }}>
+              Filter by Year:
+            </Typography.Text>
+            <Segmented
+              value={vizYear}
+              onChange={(v) => setVizYear(v)}
+              options={[
+                { value: "all", label: "All Years" },
+                ...years.map((y) => ({
+                  value: String(y),
+                  label: `FY${y}`,
+                })),
+              ]}
+              style={{ maxWidth: "100%", overflowX: "auto" }}
+            />
+          </div>
+
+          {dataForVisualization.length === 0 ? (
+            <Alert
+              message="No Data Available"
+              description={
+                vizYear === "all"
+                  ? "No client records found. Switch to the Data tab to add records."
+                  : `No client records found for FY${vizYear}. Switch to the Data tab to add records.`
+              }
+              type="info"
+              showIcon
+            />
+          ) : (
+            <>
+              {/* Summary Cards */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                  gap: 16,
+                  marginBottom: 24,
+                }}
+              >
+                <Card size="small">
+                  <Typography.Text type="secondary">
+                    Total Records
+                  </Typography.Text>
+                  <div
+                    style={{
+                      fontSize: 24,
+                      fontWeight: "bold",
+                      color: "#1890ff",
+                    }}
+                  >
+                    {dataForVisualization.length}
+                  </div>
+                </Card>
+                <Card size="small">
+                  <Typography.Text type="secondary">
+                    Year Filter
+                  </Typography.Text>
+                  <div style={{ fontSize: 16, fontWeight: "bold" }}>
+                    {vizYear === "all" ? "All Years" : `FY${vizYear}`}
+                  </div>
+                </Card>
+                <Card size="small">
+                  <Typography.Text type="secondary">Median Age</Typography.Text>
+                  <div style={{ fontSize: 16, fontWeight: "bold" }}>
+                    {chartData.medianAge ?? "N/A"}
+                  </div>
+                </Card>
+                <Card size="small">
+                  <Typography.Text type="secondary">
+                    Unique Life Coaches
+                  </Typography.Text>
+                  <div style={{ fontSize: 16, fontWeight: "bold" }}>
+                    {chartData.uniqueCoaches}
+                  </div>
+                </Card>
+                <Card size="small">
+                  <Typography.Text type="secondary">
+                    Unique Area Offices
+                  </Typography.Text>
+                  <div style={{ fontSize: 16, fontWeight: "bold" }}>
+                    {chartData.uniqueAreas}
+                  </div>
+                </Card>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 24,
+                  marginBottom: 24,
+                }}
+              >
+                {/* Age Distribution */}
+                <Card title="Age Distribution" size="small">
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={chartData.ageData}>
+                      <defs>
+                        <linearGradient
+                          id="ageGradient"
+                          x1="0"
+                          y1="0"
+                          x2="0"
+                          y2="1"
+                        >
+                          <stop
+                            offset="0%"
+                            stopColor="#8884d8"
+                            stopOpacity={0.9}
+                          />
+                          <stop
+                            offset="100%"
+                            stopColor="#8884d8"
+                            stopOpacity={0.3}
+                          />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="age" />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar
+                        dataKey="count"
+                        fill="url(#ageGradient)"
+                        radius={[6, 6, 0, 0]}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Card>
+
+                {/* Sex Distribution */}
+                <Card title="Sex Distribution" size="small">
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <defs>
+                        <linearGradient id="pieA" x1="0" y1="0" x2="1" y2="1">
+                          <stop offset="0%" stopColor="#8884d8" />
+                          <stop offset="100%" stopColor="#8dd1e1" />
+                        </linearGradient>
+                      </defs>
+                      <Pie
+                        data={chartData.sexChartData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) =>
+                          `${name} ${((percent as number) * 100).toFixed(0)}%`
+                        }
+                        innerRadius={50}
+                        outerRadius={80}
+                        fill="url(#pieA)"
+                        dataKey="value"
                       >
-                        Actions <DownOutlined />
-                      </Button>
-                    </Dropdown>
-                  );
-                },
-              },
-            ]}
-            onRow={(record) => ({
-              onClick: () => setSelectedRow(record),
-              style: { cursor: "pointer" },
-            })}
-          />
-        </motion.div>
+                        {chartData.sexChartData.map((entry, index) => (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={COLORS[index % COLORS.length]}
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </Card>
+
+                {/* Race/Ethnicity Distribution */}
+                <Card title="Race/Ethnicity Distribution" size="small">
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <defs>
+                        <linearGradient id="pieB" x1="0" y1="0" x2="1" y2="1">
+                          <stop offset="0%" stopColor="#82ca9d" />
+                          <stop offset="100%" stopColor="#ffc658" />
+                        </linearGradient>
+                      </defs>
+                      <Pie
+                        data={chartData.raceChartData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) =>
+                          `${name} ${((percent as number) * 100).toFixed(0)}%`
+                        }
+                        innerRadius={50}
+                        outerRadius={80}
+                        fill="url(#pieB)"
+                        dataKey="value"
+                      >
+                        {chartData.raceChartData.map((entry, index) => (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={COLORS[index % COLORS.length]}
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </Card>
+
+                {/* Life Coach Distribution */}
+                <Card
+                  title="Life Coach Distribution"
+                  size="small"
+                  style={{ gridColumn: "1 / -1" }}
+                >
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={chartData.coachChartData}>
+                      <defs>
+                        <linearGradient
+                          id="coachGradient"
+                          x1="0"
+                          y1="0"
+                          x2="0"
+                          y2="1"
+                        >
+                          <stop
+                            offset="0%"
+                            stopColor="#ffc658"
+                            stopOpacity={0.9}
+                          />
+                          <stop
+                            offset="100%"
+                            stopColor="#ffc658"
+                            stopOpacity={0.3}
+                          />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="coach"
+                        angle={-45}
+                        textAnchor="end"
+                        height={100}
+                      />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar
+                        dataKey="count"
+                        fill="url(#coachGradient)"
+                        radius={[6, 6, 0, 0]}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Card>
+              </div>
+            </>
+          )}
+        </div>
       )}
     </Card>
   );
