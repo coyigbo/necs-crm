@@ -1,6 +1,7 @@
+// @ts-nocheck
 // Edge Function: user-names
 // Usage: POST with JSON { userIds: string[] }
-// Returns: { names: Record<userId, fullName> }
+// Returns: { names: Record<userId, fullName>, emails: Record<userId, email> }
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -58,17 +59,23 @@ serve(async (req: Request) => {
     const results = await Promise.all(
       uniqueIds.map(async (id) => {
         const { data, error } = await admin.auth.admin.getUserById(id);
-        if (error || !data?.user) return [id, null] as const;
-        return [id, coalesceName(data.user)] as const;
+        if (error || !data?.user) return [id, null, null] as const;
+        return [
+          id,
+          coalesceName(data.user),
+          (data.user.email as string | null) ?? null,
+        ] as const;
       })
     );
 
-    const map: Record<string, string> = {};
-    for (const [id, name] of results) {
-      if (name) map[id] = name;
+    const names: Record<string, string> = {};
+    const emails: Record<string, string> = {};
+    for (const [id, name, email] of results) {
+      if (name) names[id] = name;
+      if (email) emails[id] = email;
     }
 
-    return new Response(JSON.stringify({ names: map }), {
+    return new Response(JSON.stringify({ names, emails }), {
       status: 200,
       headers: { "Content-Type": "application/json", ...corsHeaders() },
     });

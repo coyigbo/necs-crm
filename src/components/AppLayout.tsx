@@ -41,11 +41,6 @@ export function AppLayout({ children }: AppLayoutProps) {
         icon: <ReconciliationOutlined />,
         label: "Grants",
       },
-      {
-        key: "/donor-tracker",
-        icon: <MoneyCollectOutlined />,
-        label: "Donor Tracker",
-      },
       { key: "/networking", icon: <ShareAltOutlined />, label: "Networking" },
       {
         key: "/closed",

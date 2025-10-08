@@ -69,7 +69,7 @@ export default function Grantmaking() {
   const { organizationId } = useOrg();
   const [params, setParams] = useSearchParams();
   const activeTab = params.get("tab") || "applications";
-  const appsView = params.get("apps") || "submitted";
+  const appsView = params.get("apps") || "pending";
   const outView = params.get("out") || "accepted";
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm] = Form.useForm();
@@ -291,26 +291,27 @@ export default function Grantmaking() {
                             transition={{ duration: 0.18 }}
                             layout
                           >
-                            <Card
-                              size="small"
-                              style={{
-                                marginBottom: 12,
-                                background: "#fafafa",
-                              }}
-                              bordered
-                              bodyStyle={{ padding: 12 }}
-                            >
-                              <Typography.Text strong>
+                            <div style={{ marginBottom: 16 }}>
+                              <Typography.Text
+                                strong
+                                style={{
+                                  fontSize: 16,
+                                  marginBottom: 8,
+                                  display: "block",
+                                }}
+                              >
                                 Queued ({queued.length})
                               </Typography.Text>
                               <Table
                                 rowKey={(r) => r.id}
                                 dataSource={queued}
                                 pagination={{
-                                  pageSize: 10,
                                   showSizeChanger: true,
+                                  showQuickJumper: false,
+                                  showTotal: (total, range) =>
+                                    `${range[0]}-${range[1]} of ${total} items`,
                                 }}
-                                size="small"
+                                scroll={{ x: 1000 }}
                                 tableLayout="fixed"
                                 style={{ width: "100%" }}
                                 columns={(() => {
@@ -326,55 +327,59 @@ export default function Grantmaking() {
                                     {
                                       title: "Donor Name",
                                       dataIndex: "donor_name",
+                                      width: 130,
                                       ellipsis: true,
                                       align: "center",
                                       onHeaderCell: () => ({
                                         style: headerCellStyle,
                                       }),
+                                      render: (value: string | null) =>
+                                        value
+                                          ? toTitleCase(String(value))
+                                          : renderNull(),
                                     },
                                     {
                                       title: "Date Opened",
                                       dataIndex: "date_opened",
-                                      width: 120,
+                                      width: 100,
                                       align: "center",
                                       ellipsis: true,
                                       onHeaderCell: () => ({
                                         style: headerCellStyle,
                                       }),
+                                      render: (value: string | null) =>
+                                        displayOrNull(value),
                                     },
                                     {
                                       title: "Date Due",
                                       dataIndex: "date_due",
-                                      width: 120,
+                                      width: 100,
                                       align: "center",
                                       ellipsis: true,
                                       onHeaderCell: () => ({
                                         style: headerCellStyle,
                                       }),
-                                    },
-                                    {
-                                      title: "Report Due",
-                                      dataIndex: "report_due",
-                                      width: 120,
-                                      align: "center",
-                                      ellipsis: true,
-                                      onHeaderCell: () => ({
-                                        style: headerCellStyle,
-                                      }),
+                                      render: (value: string | null) =>
+                                        displayOrNull(value),
                                     },
                                     {
                                       title: "Program",
                                       dataIndex: "program",
+                                      width: 100,
                                       ellipsis: true,
                                       align: "center",
                                       onHeaderCell: () => ({
                                         style: headerCellStyle,
                                       }),
+                                      render: (value: string | null) =>
+                                        value
+                                          ? toTitleCase(String(value))
+                                          : renderNull(),
                                     },
                                     {
                                       title: "Value",
                                       dataIndex: "value",
-                                      width: 120,
+                                      width: 100,
                                       align: "center",
                                       onHeaderCell: () => ({
                                         style: headerCellStyle,
@@ -382,30 +387,25 @@ export default function Grantmaking() {
                                       render: (v: number | null) =>
                                         typeof v === "number"
                                           ? currency.format(v)
-                                          : "—",
+                                          : renderNull(),
                                     },
                                     {
                                       title: "Region",
                                       dataIndex: "region",
-                                      width: 140,
+                                      width: 100,
                                       ellipsis: true,
                                       align: "center",
                                       onHeaderCell: () => ({
                                         style: headerCellStyle,
                                       }),
-                                    },
-                                    {
-                                      title: "Notes",
-                                      dataIndex: "notes",
-                                      ellipsis: true,
-                                      align: "center",
-                                      onHeaderCell: () => ({
-                                        style: headerCellStyle,
-                                      }),
+                                      render: (value: string | null) =>
+                                        value
+                                          ? toTitleCase(String(value))
+                                          : renderNull(),
                                     },
                                     {
                                       title: "Actions",
-                                      width: 160,
+                                      width: 120,
                                       align: "center",
                                       onHeaderCell: () => ({
                                         style: headerCellStyle,
@@ -537,22 +537,28 @@ export default function Grantmaking() {
                                           <Dropdown
                                             menu={{
                                               items,
-                                              onClick: ({ domEvent }) =>
-                                                domEvent.stopPropagation(),
+                                              onClick: async ({
+                                                key,
+                                                domEvent,
+                                              }) => {
+                                                domEvent.stopPropagation();
+                                                if (key === "view") {
+                                                  setSelectedGrant(r);
+                                                }
+                                              },
                                             }}
+                                            placement="bottomRight"
+                                            trigger={["click"]}
                                           >
                                             <Button
+                                              type="primary"
+                                              danger
                                               size="small"
                                               onClick={(e) =>
                                                 e.stopPropagation()
                                               }
-                                              style={{
-                                                backgroundColor: "#ef4444",
-                                                color: "#fff",
-                                                borderColor: "#ef4444",
-                                              }}
                                             >
-                                              Actions ▾
+                                              Actions <DownOutlined />
                                             </Button>
                                           </Dropdown>
                                         );
@@ -565,7 +571,7 @@ export default function Grantmaking() {
                                   style: { cursor: "pointer" },
                                 })}
                               />
-                            </Card>
+                            </div>
                           </motion.div>
                         )}
                       </AnimatePresence>
@@ -604,12 +610,12 @@ export default function Grantmaking() {
                         }}
                         items={[
                           {
-                            key: "submitted",
-                            label: `Submitted (${submitted.length})`,
-                          },
-                          {
                             key: "pending",
                             label: `Pending Submission (${pending.length})`,
+                          },
+                          {
+                            key: "submitted",
+                            label: `Submitted (${submitted.length})`,
                           },
                         ]}
                         style={{ marginBottom: 12 }}
@@ -631,13 +637,13 @@ export default function Grantmaking() {
                             showTotal: (total, range) =>
                               `${range[0]}-${range[1]} of ${total} items`,
                           }}
-                          scroll={{ x: 1200 }}
+                          scroll={{ x: 1000 }}
                           tableLayout="fixed"
                           style={{ width: "100%" }}
                           columns={(() => {
                             const actionsCol = {
                               title: "Actions",
-                              width: 360,
+                              width: 120,
                               align: "center",
                               onHeaderCell: () => ({ style: headerCellStyle }),
                               render: (r: GrantItem) => {
@@ -978,7 +984,7 @@ export default function Grantmaking() {
                               {
                                 title: "Donor Name",
                                 dataIndex: "donor_name",
-                                width: 150,
+                                width: 130,
                                 ellipsis: true,
                                 align: "center",
                                 onHeaderCell: () => ({
@@ -992,7 +998,7 @@ export default function Grantmaking() {
                               {
                                 title: "Date Opened",
                                 dataIndex: "date_opened",
-                                width: 120,
+                                width: 100,
                                 ellipsis: true,
                                 align: "center",
                                 onHeaderCell: () => ({
@@ -1004,7 +1010,7 @@ export default function Grantmaking() {
                               {
                                 title: "Date Due",
                                 dataIndex: "date_due",
-                                width: 120,
+                                width: 100,
                                 ellipsis: true,
                                 align: "center",
                                 onHeaderCell: () => ({
@@ -1016,7 +1022,7 @@ export default function Grantmaking() {
                               {
                                 title: "Program",
                                 dataIndex: "program",
-                                width: 120,
+                                width: 100,
                                 ellipsis: true,
                                 align: "center",
                                 onHeaderCell: () => ({
@@ -1030,7 +1036,7 @@ export default function Grantmaking() {
                               {
                                 title: "Value",
                                 dataIndex: "value",
-                                width: 120,
+                                width: 100,
                                 align: "center",
                                 onHeaderCell: () => ({
                                   style: headerCellStyle,
@@ -1043,7 +1049,7 @@ export default function Grantmaking() {
                               {
                                 title: "Region",
                                 dataIndex: "region",
-                                width: 140,
+                                width: 100,
                                 ellipsis: true,
                                 align: "center",
                                 onHeaderCell: () => ({
@@ -1061,7 +1067,7 @@ export default function Grantmaking() {
                               baseCols.splice(insertIndex, 0, {
                                 title: "Review Outcome",
                                 dataIndex: "review_outcome",
-                                width: 220,
+                                width: 140,
                                 ellipsis: true,
                                 align: "center",
                                 onHeaderCell: () => ({

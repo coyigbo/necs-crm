@@ -309,16 +309,35 @@ export default function ClosedClientFiles() {
   };
 
   const loadRows = async (orgId: string) => {
-    const { data, error } = await supabase
-      .from("closed_client_files")
-      .select(
-        "id,client_name,life_coach,start_date,end_date,area_office,race_eth,sex,case_code,age,hometown,model,notes,year"
-      )
-      .eq("organization_id", orgId)
-      .in("year", FIXED_YEARS)
-      .order("client_name", { ascending: true });
-    if (error) throw error;
-    return (data as ClosedFileRow[]) ?? [];
+    // Fetch ALL records by paginating through results
+    let allData: ClosedFileRow[] = [];
+    const pageSize = 1000;
+    let page = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from("closed_client_files")
+        .select(
+          "id,client_name,life_coach,start_date,end_date,area_office,race_eth,sex,case_code,age,hometown,model,notes,year"
+        )
+        .eq("organization_id", orgId)
+        .in("year", FIXED_YEARS)
+        .order("client_name", { ascending: true })
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        allData = [...allData, ...(data as ClosedFileRow[])];
+        hasMore = data.length === pageSize; // Continue if we got a full page
+        page++;
+      } else {
+        hasMore = false;
+      }
+    }
+
+    return allData;
   };
 
   const refresh = async () => {
