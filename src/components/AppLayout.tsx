@@ -59,10 +59,19 @@ export function AppLayout({ children }: AppLayoutProps) {
           style={{
             height: 48,
             margin: 12,
-            background: "rgba(255,255,255,0.15)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             borderRadius: 6,
+            overflow: "hidden",
           }}
-        />
+        >
+          <img
+            src="/logo.svg"
+            alt="App logo"
+            style={{ width: 28, height: 28, display: "block" }}
+          />
+        </div>
         <Menu
           theme="dark"
           mode="inline"
@@ -82,8 +91,13 @@ export function AppLayout({ children }: AppLayoutProps) {
             borderBottom: `1px solid ${token.colorBorder}`,
           }}
         >
+          <img
+            src="/logo.svg"
+            alt="App logo"
+            style={{ width: 24, height: 24 }}
+          />
           <Typography.Title level={4} style={{ margin: 0 }}>
-            NECS CRM
+            CRM
           </Typography.Title>
           <div
             style={{
@@ -166,7 +180,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         <Footer
           style={{ textAlign: "center", background: token.colorBgLayout }}
         >
-          © {new Date().getFullYear()} NECS
+          © {new Date().getFullYear()} All rights reserved
         </Footer>
       </Layout>
     </Layout>

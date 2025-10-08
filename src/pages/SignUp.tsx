@@ -152,27 +152,16 @@ export default function SignUp() {
               marginBottom: 24,
             }}
           >
-            <div
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 12,
-                background: token.colorPrimary,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#fff",
-                fontSize: 20,
-                fontWeight: "bold",
-              }}
-            >
-              N
-            </div>
+            <img
+              src="/logo.svg"
+              alt="App logo"
+              style={{ width: 40, height: 40 }}
+            />
             <Typography.Text
               strong
               style={{ fontSize: 16, letterSpacing: -0.5 }}
             >
-              NECS CRM
+              Welcome
             </Typography.Text>
           </div>
           <Typography.Title level={2} style={{ marginTop: 0, marginBottom: 8 }}>
