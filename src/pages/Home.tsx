@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card, Typography, theme, Button, Skeleton, Alert, Tag } from "antd";
+import { Card, Typography, theme, Skeleton, Alert, Tag } from "antd";
 import { motion } from "framer-motion";
 import { useAuth } from "../auth/AuthProvider";
 import { useOrg } from "../org/OrgProvider";
 import { supabase } from "../lib/supabaseClient";
-import { useNavigate } from "react-router-dom";
+// removed navigate-dependent bubbles
 import {
   Area,
   AreaChart,
@@ -39,7 +39,6 @@ export default function Home() {
   const { token } = theme.useToken();
   const { user } = useAuth();
   const { organizationId } = useOrg();
-  const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -57,14 +56,6 @@ export default function Home() {
   const [networkingTrend, setNetworkingTrend] = useState<TrendPoint[]>([]);
   const [closedByYear, setClosedByYear] = useState<
     { year: number; count: number }[]
-  >([]);
-  const [upcomingDue, setUpcomingDue] = useState<
-    {
-      id: string;
-      donor_name: string | null;
-      date_due: string | null;
-      status: string | null;
-    }[]
   >([]);
 
   const displayName = useMemo(() => {
@@ -95,7 +86,7 @@ export default function Home() {
         inLastYear.setDate(1);
         const since = inLastYear.toISOString().slice(0, 10);
 
-        const [grantsRes, netRes, netCreatedRes, closedRes, dueRes] =
+        const [grantsRes, netRes, netCreatedRes, closedRes, closedCountRes] =
           await Promise.all([
             supabase
               .from("grants")
@@ -117,13 +108,11 @@ export default function Home() {
               .from("closed_client_files")
               .select("id,year")
               .eq("organization_id", organizationId),
+            // exact count without fetching rows (avoids 1000 row cap)
             supabase
-              .from("grants")
-              .select("id,donor_name,date_due,status")
-              .eq("organization_id", organizationId)
-              .not("date_due", "is", null)
-              .order("date_due", { ascending: true })
-              .limit(8),
+              .from("closed_client_files")
+              .select("id", { count: "exact", head: true })
+              .eq("organization_id", organizationId),
           ]);
 
         if (!mounted) return;
@@ -213,22 +202,8 @@ export default function Home() {
         setTrend(trendData);
         setNetworkingTrend(netTrendData);
         setNetworkingCount(netRes.count || (netRes.data as any[])?.length || 0);
-        setClosedFilesCount(closedRows.length);
+        setClosedFilesCount(closedCountRes.count || closedRows.length);
         setClosedByYear(closedYearData);
-
-        // Upcoming deadlines: filter upcoming only
-        const today = new Date().toISOString().slice(0, 10);
-        const dueUpcoming = ((dueRes.data as any[]) || [])
-          .filter((r) => r.date_due && String(r.date_due) >= today)
-          .slice(0, 6);
-        setUpcomingDue(
-          dueUpcoming.map((r) => ({
-            id: String(r.id),
-            donor_name: r.donor_name ?? null,
-            date_due: r.date_due ?? null,
-            status: r.status ?? null,
-          }))
-        );
 
         setError(null);
       } catch (e: any) {
@@ -266,30 +241,22 @@ export default function Home() {
             alignItems: "baseline",
             justifyContent: "space-between",
             gap: 12,
-            marginBottom: 12,
+            marginBottom: 24,
           }}
         >
           <div>
             <Typography.Title
-              level={3}
+              level={2}
               style={{ marginTop: 0, marginBottom: 0 }}
             >
               Welcome back, {displayName}
             </Typography.Title>
-            <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+            <Typography.Paragraph
+              type="secondary"
+              style={{ marginBottom: 0, fontSize: 16 }}
+            >
               High-level overview of your organization's data footprint
             </Typography.Paragraph>
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <Button onClick={() => navigate("/grantmaking")} shape="round">
-              Grants
-            </Button>
-            <Button onClick={() => navigate("/networking")} shape="round">
-              Networking
-            </Button>
-            <Button onClick={() => navigate("/closed")} shape="round">
-              Closed Client Files
-            </Button>
           </div>
         </div>
 
@@ -351,139 +318,6 @@ export default function Home() {
                 icon={<FileDoneOutlined />}
                 accent="#7c3aed"
               />
-            </div>
-
-            {/* Trend + Upcoming */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1.3fr 1fr",
-                gap: 12,
-                alignItems: "stretch",
-              }}
-            >
-              <Card
-                title={
-                  <div
-                    style={{ display: "flex", justifyContent: "space-between" }}
-                  >
-                    <span>Submissions (last 12 months)</span>
-                    <Tag color="red">Applications</Tag>
-                  </div>
-                }
-                bordered
-                style={{ background: token.colorBgContainer }}
-              >
-                <div style={{ height: 240 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart
-                      data={trend}
-                      margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
-                    >
-                      <defs>
-                        <linearGradient
-                          id="colorPrimary"
-                          x1="0"
-                          y1="0"
-                          x2="0"
-                          y2="1"
-                        >
-                          <stop
-                            offset="0%"
-                            stopColor="#ef4444"
-                            stopOpacity={0.38}
-                          />
-                          <stop
-                            offset="100%"
-                            stopColor="#ef4444"
-                            stopOpacity={0.05}
-                          />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke={token.colorBorder}
-                      />
-                      <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                      <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
-                      <Tooltip
-                        formatter={(v: any) => [String(v), "Submissions"]}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="submissions"
-                        stroke="#ef4444"
-                        fill="url(#colorPrimary)"
-                        strokeWidth={2}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </Card>
-
-              <Card title="Upcoming Deadlines" bordered>
-                {upcomingDue.length === 0 ? (
-                  <Typography.Text type="secondary">
-                    No upcoming deadlines
-                  </Typography.Text>
-                ) : (
-                  <div
-                    style={{ display: "flex", flexDirection: "column", gap: 8 }}
-                  >
-                    {upcomingDue.map((d) => (
-                      <div
-                        key={d.id}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "8px 10px",
-                          border: `1px solid ${token.colorBorder}`,
-                          borderRadius: token.borderRadius,
-                          background: token.colorBgContainer,
-                        }}
-                      >
-                        <div
-                          style={{ display: "flex", flexDirection: "column" }}
-                        >
-                          <Typography.Text strong style={{ marginBottom: 2 }}>
-                            {d.donor_name || "—"}
-                          </Typography.Text>
-                          {renderStatusTag(d.status)}
-                        </div>
-                        <div style={{ textAlign: "right" }}>
-                          <span
-                            style={{
-                              display: "inline-block",
-                              padding: "2px 8px",
-                              borderRadius: 999,
-                              background: token.colorBgLayout,
-                              fontSize: 12,
-                              color: "#475569",
-                            }}
-                          >
-                            {d.date_due || ""}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    marginTop: 12,
-                  }}
-                >
-                  <Button
-                    type="primary"
-                    onClick={() => navigate("/grantmaking")}
-                  >
-                    View all
-                  </Button>
-                </div>
-              </Card>
             </div>
 
             {/* Networking + Closed Files visualizations */}
@@ -587,6 +421,66 @@ export default function Home() {
                 </div>
               </Card>
             </div>
+
+            {/* Submissions trend */}
+            <Card
+              title={
+                <div
+                  style={{ display: "flex", justifyContent: "space-between" }}
+                >
+                  <span>Submissions (last 12 months)</span>
+                  <Tag color="red">Applications</Tag>
+                </div>
+              }
+              bordered
+              style={{ background: token.colorBgContainer }}
+            >
+              <div style={{ height: 240 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart
+                    data={trend}
+                    margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+                  >
+                    <defs>
+                      <linearGradient
+                        id="colorPrimary"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop
+                          offset="0%"
+                          stopColor="#ef4444"
+                          stopOpacity={0.38}
+                        />
+                        <stop
+                          offset="100%"
+                          stopColor="#ef4444"
+                          stopOpacity={0.05}
+                        />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke={token.colorBorder}
+                    />
+                    <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                    <Tooltip
+                      formatter={(v: any) => [String(v), "Submissions"]}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="submissions"
+                      stroke="#ef4444"
+                      fill="url(#colorPrimary)"
+                      strokeWidth={2}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
           </>
         )}
       </motion.div>

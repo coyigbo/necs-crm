@@ -1080,9 +1080,7 @@ export default function Grantmaking() {
                                     >
                                       {v}
                                     </Typography.Text>
-                                  ) : (
-                                    displayOrNull(v)
-                                  ),
+                                  ) : null,
                               } as any);
                             }
                             return [...baseCols, actionsCol];
