@@ -557,10 +557,6 @@ export default function Networking() {
                             if (key === "view") {
                               setSelected(record);
                             } else if (key === "edit") {
-                              console.log(
-                                "Edit button clicked for:",
-                                record.name
-                              );
                               setSelected(record);
                               setEditOpen(true);
                               editForm.setFieldsValue({

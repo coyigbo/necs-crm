@@ -20,13 +20,14 @@ import {
 import { Upload } from "antd";
 const { Dragger } = Upload;
 import { useSearchParams } from "react-router-dom";
-import { useEffect, useState } from "react";
-import type { CSSProperties } from "react";
+import { useEffect, useState, useMemo } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../lib/supabaseClient";
 import { useOrg } from "../org/OrgProvider";
 import { useAuth } from "../auth/AuthProvider";
 import dayjs from "dayjs";
+import { DownOutlined } from "@ant-design/icons";
 
 type GrantStatus =
   | "Pending Submission"
@@ -183,16 +184,35 @@ export default function Grantmaking() {
     };
   }, [organizationId]);
 
-  const headerCellStyle: CSSProperties = {
-    backgroundColor: "#f7f9fc",
-    fontWeight: 600,
-    textTransform: "uppercase",
-    fontSize: 12,
-    letterSpacing: 0.3,
-    color: "#344054",
-    borderBottom: "1px solid #e5e7eb",
-    textAlign: "center",
+  const renderNull = () => <span style={{ color: "#ef4444" }}>NULL</span>;
+
+  const displayOrNull = (value: any): ReactNode => {
+    if (
+      value === null ||
+      value === undefined ||
+      (typeof value === "string" && value.trim() === "")
+    ) {
+      return renderNull();
+    }
+    return value;
   };
+
+  const toTitleCase = (s: string) =>
+    s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+
+  const headerCellStyle: CSSProperties = useMemo(
+    () => ({
+      backgroundColor: "#f7f9fc",
+      fontWeight: 600,
+      textTransform: "uppercase",
+      fontSize: 12,
+      letterSpacing: 0.3,
+      color: "#344054",
+      borderBottom: "1px solid #e5e7eb",
+      textAlign: "center",
+    }),
+    []
+  );
 
   return (
     <Card bordered={false}>
@@ -605,10 +625,21 @@ export default function Grantmaking() {
                         <Table
                           rowKey={(r) => r.id}
                           dataSource={data}
+                          pagination={{
+                            showSizeChanger: true,
+                            showQuickJumper: false,
+                            showTotal: (total, range) =>
+                              `${range[0]}-${range[1]} of ${total} items`,
+                          }}
+                          scroll={{ x: 1200 }}
+                          tableLayout="fixed"
+                          style={{ width: "100%" }}
                           columns={(() => {
                             const actionsCol = {
                               title: "Actions",
                               width: 360,
+                              align: "center",
+                              onHeaderCell: () => ({ style: headerCellStyle }),
                               render: (r: GrantItem) => {
                                 const status = r.status ?? "";
                                 const isPending =
@@ -619,7 +650,9 @@ export default function Grantmaking() {
                                 const inSubmittedView =
                                   appsView === "submitted";
                                 const inPendingView = appsView === "pending";
-                                const items: any[] = [];
+                                const items: any[] = [
+                                  { key: "view", label: "View Details" },
+                                ];
                                 if (inPendingView) {
                                   items.push({
                                     key: "mark-submitted",
@@ -912,20 +945,23 @@ export default function Grantmaking() {
                                   <Dropdown
                                     menu={{
                                       items,
-                                      onClick: ({ domEvent }) =>
-                                        domEvent.stopPropagation(),
+                                      onClick: async ({ key, domEvent }) => {
+                                        domEvent.stopPropagation();
+                                        if (key === "view") {
+                                          setSelectedGrant(r);
+                                        }
+                                      },
                                     }}
+                                    placement="bottomRight"
+                                    trigger={["click"]}
                                   >
                                     <Button
+                                      type="primary"
+                                      danger
                                       size="small"
                                       onClick={(e) => e.stopPropagation()}
-                                      style={{
-                                        backgroundColor: "#ef4444",
-                                        color: "#fff",
-                                        borderColor: "#ef4444",
-                                      }}
                                     >
-                                      Actions ▾
+                                      Actions <DownOutlined />
                                     </Button>
                                   </Dropdown>
                                 );
@@ -939,53 +975,98 @@ export default function Grantmaking() {
                               maximumFractionDigits: 0,
                             });
                             const baseCols = [
-                              { title: "Donor Name", dataIndex: "donor_name" },
                               {
-                                title: "Created By",
-                                render: (r: GrantItem) =>
-                                  (r as any)._creatorName || "—",
+                                title: "Donor Name",
+                                dataIndex: "donor_name",
+                                width: 150,
+                                ellipsis: true,
+                                align: "center",
+                                onHeaderCell: () => ({
+                                  style: headerCellStyle,
+                                }),
+                                render: (value: string | null) =>
+                                  value
+                                    ? toTitleCase(String(value))
+                                    : renderNull(),
                               },
                               {
                                 title: "Date Opened",
                                 dataIndex: "date_opened",
                                 width: 120,
+                                ellipsis: true,
+                                align: "center",
+                                onHeaderCell: () => ({
+                                  style: headerCellStyle,
+                                }),
+                                render: (value: string | null) =>
+                                  displayOrNull(value),
                               },
                               {
                                 title: "Date Due",
                                 dataIndex: "date_due",
                                 width: 120,
+                                ellipsis: true,
+                                align: "center",
+                                onHeaderCell: () => ({
+                                  style: headerCellStyle,
+                                }),
+                                render: (value: string | null) =>
+                                  displayOrNull(value),
                               },
                               {
-                                title: "Report Due",
-                                dataIndex: "report_due",
+                                title: "Program",
+                                dataIndex: "program",
                                 width: 120,
+                                ellipsis: true,
+                                align: "center",
+                                onHeaderCell: () => ({
+                                  style: headerCellStyle,
+                                }),
+                                render: (value: string | null) =>
+                                  value
+                                    ? toTitleCase(String(value))
+                                    : renderNull(),
                               },
-                              { title: "Program", dataIndex: "program" },
                               {
                                 title: "Value",
                                 dataIndex: "value",
                                 width: 120,
+                                align: "center",
+                                onHeaderCell: () => ({
+                                  style: headerCellStyle,
+                                }),
                                 render: (v: number | null) =>
                                   typeof v === "number"
                                     ? currency.format(v)
-                                    : "—",
+                                    : renderNull(),
                               },
                               {
                                 title: "Region",
                                 dataIndex: "region",
                                 width: 140,
+                                ellipsis: true,
+                                align: "center",
+                                onHeaderCell: () => ({
+                                  style: headerCellStyle,
+                                }),
+                                render: (value: string | null) =>
+                                  value
+                                    ? toTitleCase(String(value))
+                                    : renderNull(),
                               },
-                              { title: "Notes", dataIndex: "notes" },
                             ] as any[];
                             if (inPendingView) {
-                              const insertIndex = Math.max(
-                                0,
-                                baseCols.length - 1
-                              );
+                              // Insert Review Outcome column at the end
+                              const insertIndex = baseCols.length;
                               baseCols.splice(insertIndex, 0, {
                                 title: "Review Outcome",
                                 dataIndex: "review_outcome",
                                 width: 220,
+                                ellipsis: true,
+                                align: "center",
+                                onHeaderCell: () => ({
+                                  style: headerCellStyle,
+                                }),
                                 render: (v: string | null | undefined) =>
                                   v === "LOI Accepted" ? (
                                     <Typography.Text
@@ -994,7 +1075,7 @@ export default function Grantmaking() {
                                       {v}
                                     </Typography.Text>
                                   ) : (
-                                    v || null
+                                    displayOrNull(v)
                                   ),
                               } as any);
                             }
@@ -1046,6 +1127,15 @@ export default function Grantmaking() {
                       <Table
                         rowKey={(r) => r.id}
                         dataSource={data}
+                        pagination={{
+                          showSizeChanger: true,
+                          showQuickJumper: false,
+                          showTotal: (total, range) =>
+                            `${range[0]}-${range[1]} of ${total} items`,
+                        }}
+                        scroll={{ x: 1200 }}
+                        tableLayout="fixed"
+                        style={{ width: "100%" }}
                         columns={(() => {
                           const currency = new Intl.NumberFormat("en-US", {
                             style: "currency",
@@ -1053,49 +1143,82 @@ export default function Grantmaking() {
                             maximumFractionDigits: 0,
                           });
                           const baseCols = [
-                            { title: "Donor Name", dataIndex: "donor_name" },
                             {
-                              title: "Created By",
-                              render: (r: GrantItem) =>
-                                (r as any)._creatorName || "—",
+                              title: "Donor Name",
+                              dataIndex: "donor_name",
+                              width: 150,
+                              ellipsis: true,
+                              align: "center",
+                              onHeaderCell: () => ({ style: headerCellStyle }),
+                              render: (value: string | null) =>
+                                value
+                                  ? toTitleCase(String(value))
+                                  : renderNull(),
                             },
                             {
                               title: "Date Opened",
                               dataIndex: "date_opened",
                               width: 120,
+                              ellipsis: true,
+                              align: "center",
+                              onHeaderCell: () => ({ style: headerCellStyle }),
+                              render: (value: string | null) =>
+                                displayOrNull(value),
                             },
                             {
                               title: "Date Due",
                               dataIndex: "date_due",
                               width: 120,
+                              ellipsis: true,
+                              align: "center",
+                              onHeaderCell: () => ({ style: headerCellStyle }),
+                              render: (value: string | null) =>
+                                displayOrNull(value),
                             },
                             {
-                              title: "Report Due",
-                              dataIndex: "report_due",
+                              title: "Program",
+                              dataIndex: "program",
                               width: 120,
+                              ellipsis: true,
+                              align: "center",
+                              onHeaderCell: () => ({ style: headerCellStyle }),
+                              render: (value: string | null) =>
+                                value
+                                  ? toTitleCase(String(value))
+                                  : renderNull(),
                             },
-                            { title: "Program", dataIndex: "program" },
                             {
                               title: "Value",
                               dataIndex: "value",
                               width: 120,
+                              align: "center",
+                              onHeaderCell: () => ({ style: headerCellStyle }),
                               render: (v: number | null) =>
                                 typeof v === "number"
                                   ? currency.format(v)
-                                  : "—",
+                                  : renderNull(),
                             },
                             {
                               title: "Region",
                               dataIndex: "region",
                               width: 140,
+                              ellipsis: true,
+                              align: "center",
+                              onHeaderCell: () => ({ style: headerCellStyle }),
+                              render: (value: string | null) =>
+                                value
+                                  ? toTitleCase(String(value))
+                                  : renderNull(),
                             },
-                            { title: "Notes", dataIndex: "notes" },
                           ] as any[];
                           const actionsCol = {
                             title: "Actions",
                             width: 320,
+                            align: "center",
+                            onHeaderCell: () => ({ style: headerCellStyle }),
                             render: (r: GrantItem) => {
                               const items: any[] = [
+                                { key: "view", label: "View Details" },
                                 {
                                   key: "revert",
                                   label: (
@@ -1182,20 +1305,23 @@ export default function Grantmaking() {
                                 <Dropdown
                                   menu={{
                                     items,
-                                    onClick: ({ domEvent }) =>
-                                      domEvent.stopPropagation(),
+                                    onClick: async ({ key, domEvent }) => {
+                                      domEvent.stopPropagation();
+                                      if (key === "view") {
+                                        setSelectedGrant(r);
+                                      }
+                                    },
                                   }}
+                                  placement="bottomRight"
+                                  trigger={["click"]}
                                 >
                                   <Button
+                                    type="primary"
+                                    danger
                                     size="small"
                                     onClick={(e) => e.stopPropagation()}
-                                    style={{
-                                      backgroundColor: "#ef4444",
-                                      color: "#fff",
-                                      borderColor: "#ef4444",
-                                    }}
                                   >
-                                    Actions ▾
+                                    Actions <DownOutlined />
                                   </Button>
                                 </Dropdown>
                               );
@@ -1411,27 +1537,27 @@ export default function Grantmaking() {
           >
             <div>
               <Typography.Text type="secondary">Donor Name</Typography.Text>
-              <div>{selectedGrant.donor_name}</div>
-            </div>
-            <div>
-              <Typography.Text type="secondary">Created By</Typography.Text>
-              <div>{(selectedGrant as any)._creatorName || "—"}</div>
+              <div>
+                {selectedGrant.donor_name
+                  ? toTitleCase(selectedGrant.donor_name)
+                  : renderNull()}
+              </div>
             </div>
             <div>
               <Typography.Text type="secondary">Date Opened</Typography.Text>
-              <div>{selectedGrant.date_opened || "—"}</div>
+              <div>{displayOrNull(selectedGrant.date_opened)}</div>
             </div>
             <div>
               <Typography.Text type="secondary">Date Due</Typography.Text>
-              <div>{selectedGrant.date_due || "—"}</div>
-            </div>
-            <div>
-              <Typography.Text type="secondary">Report Due</Typography.Text>
-              <div>{selectedGrant.report_due || "—"}</div>
+              <div>{displayOrNull(selectedGrant.date_due)}</div>
             </div>
             <div>
               <Typography.Text type="secondary">Program</Typography.Text>
-              <div>{selectedGrant.program || "—"}</div>
+              <div>
+                {selectedGrant.program
+                  ? toTitleCase(selectedGrant.program)
+                  : renderNull()}
+              </div>
             </div>
             <div>
               <Typography.Text type="secondary">Value</Typography.Text>
@@ -1442,17 +1568,15 @@ export default function Grantmaking() {
                       currency: "USD",
                       maximumFractionDigits: 0,
                     }).format(selectedGrant.value)
-                  : "—"}
+                  : renderNull()}
               </div>
             </div>
             <div>
               <Typography.Text type="secondary">Region</Typography.Text>
-              <div>{selectedGrant.region || "—"}</div>
-            </div>
-            <div style={{ gridColumn: "1 / -1" }}>
-              <Typography.Text type="secondary">Notes</Typography.Text>
-              <div style={{ whiteSpace: "pre-wrap" }}>
-                {selectedGrant.notes || "—"}
+              <div>
+                {selectedGrant.region
+                  ? toTitleCase(selectedGrant.region)
+                  : renderNull()}
               </div>
             </div>
           </div>
