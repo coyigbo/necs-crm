@@ -116,9 +116,6 @@ export default function Verify() {
       const { error: resendError } = await supabase.auth.resend({
         type: "signup",
         email,
-        options: {
-          data: userData,
-        },
       });
 
       if (resendError) throw resendError;
