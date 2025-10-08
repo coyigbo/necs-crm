@@ -76,6 +76,7 @@ export default function Grantmaking() {
   const [awardOpen, setAwardOpen] = useState(false);
   const [awardForm] = Form.useForm();
   const [awardImportOpen, setAwardImportOpen] = useState(false);
+  const [appImportOpen, setAppImportOpen] = useState(false);
 
   const loadGrantsWithNames = async (orgId: string) => {
     const { data, error } = await supabase
@@ -461,7 +462,22 @@ export default function Grantmaking() {
                         }}
                         tabBarExtraContent={{
                           right: (
-                            <div style={{ marginBottom: 6 }}>
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: 8,
+                                marginBottom: 6,
+                              }}
+                            >
+                              {appsView === "pending" && (
+                                <Button
+                                  type="primary"
+                                  danger
+                                  onClick={() => setAppImportOpen(true)}
+                                >
+                                  Import Data as CSV
+                                </Button>
+                              )}
                               <Button
                                 type="primary"
                                 onClick={() => setCreateOpen(true)}
@@ -1285,6 +1301,8 @@ export default function Grantmaking() {
         </Form>
       </Modal>
 
+      {/* helpers for CSV parsing */}
+      {/* keep functions local to component scope */}
       <Modal
         title={selectedGrant ? selectedGrant.donor_name : "Application Details"}
         open={!!selectedGrant}
@@ -1413,6 +1431,118 @@ export default function Grantmaking() {
       </Modal>
 
       <Modal
+        title="Import Applications (CSV)"
+        open={appImportOpen}
+        onCancel={() => setAppImportOpen(false)}
+        footer={null}
+        destroyOnClose
+      >
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+          Upload a CSV with headers matching the grants import schema
+          (donor_name, date_opened, date_due, program, value, region, contact,
+          review_url, notes, date_submission, report_due, status).
+        </Typography.Paragraph>
+        <Dragger
+          accept=".csv"
+          multiple={false}
+          showUploadList={false}
+          beforeUpload={async (file) => {
+            if (!organizationId) {
+              message.error("No organization");
+              return false;
+            }
+            try {
+              const text = await file.text();
+              const lines = text
+                .split(/\r?\n/)
+                .filter((l) => l.trim().length > 0);
+              if (lines.length === 0) {
+                message.error("CSV is empty");
+                return false;
+              }
+              const [headerLine, ...dataLines] = lines;
+              const headers = headerLine
+                .replace(/^\uFEFF/, "")
+                .split(",")
+                .map((h) => h.trim().toLowerCase());
+              const idx = (label: string) =>
+                headers.indexOf(label.toLowerCase());
+              const get = (cols: string[], i: number) =>
+                i >= 0 ? (cols[i] ?? "").trim() : "";
+
+              const iDonor = idx("donor_name");
+              if (iDonor === -1) {
+                message.error("Missing required header: donor_name");
+                return false;
+              }
+              const iOpened = idx("date_opened");
+              const iDue = idx("date_due");
+              const iProgram = idx("program");
+              const iValue = idx("value");
+              const iRegion = idx("region");
+              const iContact = idx("contact");
+              const iUrl = idx("review_url");
+              const iNotes = idx("notes");
+              const iSub = idx("date_submission");
+              const iReport = idx("report_due");
+              const iStatus = idx("status");
+
+              const toInsert: any[] = [];
+              dataLines.forEach((line) => {
+                const cols = splitCsvLine(line);
+                const donor_name = get(cols, iDonor);
+                if (!donor_name) return;
+                const date_opened = normalizeDate(get(cols, iOpened));
+                const date_due = normalizeDate(get(cols, iDue));
+                const date_submission = normalizeDate(get(cols, iSub));
+                const report_due = normalizeDate(get(cols, iReport));
+                const valueParsed = parseCurrencyToNumber(get(cols, iValue));
+                toInsert.push({
+                  donor_name,
+                  date_opened,
+                  date_due,
+                  program: get(cols, iProgram) || null,
+                  value: valueParsed,
+                  region: get(cols, iRegion) || null,
+                  contact: get(cols, iContact) || null,
+                  review_url: get(cols, iUrl) || null,
+                  notes: get(cols, iNotes) || null,
+                  date_submission,
+                  report_due,
+                  status: get(cols, iStatus) || null,
+                });
+              });
+              if (toInsert.length === 0) {
+                message.warning("No valid rows found in CSV");
+                return false;
+              }
+              const { error } = await supabase.from("grants").insert(
+                toInsert.map((r) => ({
+                  ...r,
+                  status: "Pending Submission",
+                  date_submission: null,
+                  organization_id: organizationId,
+                }))
+              );
+              if (error) throw error;
+              message.success(`Imported ${toInsert.length} rows`);
+              await loadGrantsWithNames(organizationId);
+              setAppImportOpen(false);
+            } catch (e: any) {
+              const msg = e?.message || String(e);
+              message.error(`Failed to import CSV: ${msg}`);
+            }
+            return false;
+          }}
+          style={{ padding: 12 }}
+        >
+          <p className="ant-upload-drag-icon">📄</p>
+          <p className="ant-upload-text">Select from Local Computer</p>
+          <p className="ant-upload-hint">or drag and drop a .csv file here</p>
+        </Dragger>
+      </Modal>
+
+      <Modal
         title="Import Disbursed Awards (CSV)"
         open={awardImportOpen}
         onCancel={() => setAwardImportOpen(false)}
@@ -1511,4 +1641,56 @@ export default function Grantmaking() {
       </Modal>
     </Card>
   );
+}
+
+function splitCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQ && line[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else {
+        inQ = !inQ;
+      }
+    } else if (ch === "," && !inQ) {
+      out.push(cur);
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  out.push(cur);
+  return out;
+}
+
+function normalizeDate(s: string | null): string | null {
+  if (!s) return null;
+  const t = s.trim();
+  if (!t) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+  if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}$/.test(t)) return t.slice(0, 10);
+  const m = t.match(/^(\d{1,2})[\/](\d{1,2})[\/](\d{2,4})$/);
+  if (m) {
+    let mm = Number(m[1]);
+    let dd = Number(m[2]);
+    let yy = Number(m[3]);
+    if (yy < 100) yy = 2000 + yy;
+    return `${yy}-${String(mm).padStart(2, "0")}-${String(dd).padStart(
+      2,
+      "0"
+    )}`;
+  }
+  return null; // return null for non-date strings (e.g., region values like "Dedham")
+}
+
+function parseCurrencyToNumber(s: string | null): number | null {
+  if (!s) return null;
+  const t = s.replace(/[$,]/g, "").trim();
+  if (!t) return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
 }

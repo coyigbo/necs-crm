@@ -14,9 +14,11 @@ import {
   Input,
   InputNumber,
   DatePicker,
+  Dropdown,
 } from "antd";
-import { LeftOutlined, RightOutlined } from "@ant-design/icons";
+import { LeftOutlined, RightOutlined, DownOutlined } from "@ant-design/icons";
 import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { motion } from "framer-motion";
@@ -469,6 +471,23 @@ export default function ClosedClientFiles() {
     [rows, selectedYear]
   );
 
+  const toTitleCase = (s: string) =>
+    s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+
+  const headerCellStyle: CSSProperties = useMemo(
+    () => ({
+      backgroundColor: "#f7f9fc",
+      fontWeight: 600,
+      textTransform: "uppercase",
+      fontSize: 12,
+      letterSpacing: 0.3,
+      color: "#344054",
+      borderBottom: "1px solid #e5e7eb",
+      textAlign: "center",
+    }),
+    []
+  );
+
   return (
     <Card bordered={false}>
       <Typography.Title level={3} style={{ marginTop: 0 }}>
@@ -647,11 +666,17 @@ export default function ClosedClientFiles() {
             </div>
             <div>
               <Typography.Text type="secondary">Area Office</Typography.Text>
-              <div>{selectedRow.area_office ?? "—"}</div>
+              <div>
+                {selectedRow.area_office
+                  ? toTitleCase(selectedRow.area_office)
+                  : "—"}
+              </div>
             </div>
             <div>
               <Typography.Text type="secondary">Race/Eth</Typography.Text>
-              <div>{selectedRow.race_eth ?? "—"}</div>
+              <div>
+                {selectedRow.race_eth ? toTitleCase(selectedRow.race_eth) : "—"}
+              </div>
             </div>
             <div>
               <Typography.Text type="secondary">Sex</Typography.Text>
@@ -667,7 +692,9 @@ export default function ClosedClientFiles() {
             </div>
             <div>
               <Typography.Text type="secondary">Hometown</Typography.Text>
-              <div>{selectedRow.hometown ?? "—"}</div>
+              <div>
+                {selectedRow.hometown ? toTitleCase(selectedRow.hometown) : "—"}
+              </div>
             </div>
             <div>
               <Typography.Text type="secondary">Model</Typography.Text>
@@ -851,58 +878,123 @@ export default function ClosedClientFiles() {
                 title: "Client Name",
                 dataIndex: "client_name",
                 ellipsis: true,
+                onHeaderCell: () => ({ style: headerCellStyle }),
               },
-              { title: "Start Date", dataIndex: "start_date", ellipsis: true },
-              { title: "End Date", dataIndex: "end_date", ellipsis: true },
+              {
+                title: "Start Date",
+                dataIndex: "start_date",
+                ellipsis: true,
+                onHeaderCell: () => ({ style: headerCellStyle }),
+              },
+              {
+                title: "End Date",
+                dataIndex: "end_date",
+                ellipsis: true,
+                onHeaderCell: () => ({ style: headerCellStyle }),
+              },
               {
                 title: "Area Office",
                 dataIndex: "area_office",
                 ellipsis: true,
+                render: (value: string | null) =>
+                  value ? toTitleCase(String(value)) : value,
+                onHeaderCell: () => ({ style: headerCellStyle }),
               },
-              { title: "Race/Eth", dataIndex: "race_eth", ellipsis: true },
-              { title: "Sex", dataIndex: "sex", ellipsis: true },
-              { title: "Case", dataIndex: "case_code", ellipsis: true },
-              { title: "Age", dataIndex: "age", width: 80 },
-              { title: "Hometown", dataIndex: "hometown", ellipsis: true },
+              {
+                title: "Race/Eth",
+                dataIndex: "race_eth",
+                ellipsis: true,
+                onHeaderCell: () => ({ style: headerCellStyle }),
+                render: (value: string | null) =>
+                  value ? toTitleCase(String(value)) : value,
+              },
+              {
+                title: "Sex",
+                dataIndex: "sex",
+                ellipsis: true,
+                width: 80,
+                align: "center",
+                onHeaderCell: () => ({ style: headerCellStyle }),
+              },
+              {
+                title: "Case",
+                dataIndex: "case_code",
+                ellipsis: true,
+                width: 100,
+                align: "center",
+                onHeaderCell: () => ({ style: headerCellStyle }),
+              },
+              {
+                title: "Age",
+                dataIndex: "age",
+                width: 80,
+                align: "center",
+                onHeaderCell: () => ({ style: headerCellStyle }),
+              },
+              {
+                title: "Hometown",
+                dataIndex: "hometown",
+                ellipsis: true,
+                align: "center",
+                onHeaderCell: () => ({ style: headerCellStyle }),
+                render: (value: string | null) =>
+                  value ? toTitleCase(String(value)) : value,
+              },
               {
                 title: "Actions",
-                width: 200,
-                render: (_, record) => (
-                  <Flex gap={8}>
-                    <Button size="small" onClick={() => setSelectedRow(record)}>
-                      View Details
-                    </Button>
-                    <Button
-                      size="small"
-                      type="primary"
-                      onClick={() => {
-                        setSelectedRow(record);
-                        editForm.setFieldsValue({
-                          client_name: record.client_name,
-                          life_coach: record.life_coach ?? undefined,
-                          start_date: record.start_date
-                            ? dayjs(record.start_date)
-                            : undefined,
-                          end_date: record.end_date
-                            ? dayjs(record.end_date)
-                            : undefined,
-                          area_office: record.area_office ?? undefined,
-                          race_eth: record.race_eth ?? undefined,
-                          sex: record.sex ?? undefined,
-                          case_code: record.case_code ?? undefined,
-                          age: record.age ?? undefined,
-                          hometown: record.hometown ?? undefined,
-                          model: record.model ?? undefined,
-                          notes: record.notes ?? undefined,
-                          year: record.year,
-                        });
-                        setEditOpen(true);
+                width: 120,
+                onHeaderCell: () => ({ style: headerCellStyle }),
+                render: (_, record) => {
+                  const items = [
+                    { key: "view", label: "View Details" },
+                    { key: "edit", label: "Edit" },
+                  ];
+                  return (
+                    <Dropdown
+                      menu={{
+                        items,
+                        onClick: ({ key }) => {
+                          if (key === "view") {
+                            setSelectedRow(record);
+                          } else if (key === "edit") {
+                            setSelectedRow(record);
+                            editForm.setFieldsValue({
+                              client_name: record.client_name,
+                              life_coach: record.life_coach ?? undefined,
+                              start_date: record.start_date
+                                ? dayjs(record.start_date)
+                                : undefined,
+                              end_date: record.end_date
+                                ? dayjs(record.end_date)
+                                : undefined,
+                              area_office: record.area_office ?? undefined,
+                              race_eth: record.race_eth ?? undefined,
+                              sex: record.sex ?? undefined,
+                              case_code: record.case_code ?? undefined,
+                              age: record.age ?? undefined,
+                              hometown: record.hometown ?? undefined,
+                              model: record.model ?? undefined,
+                              notes: record.notes ?? undefined,
+                              year: record.year,
+                            });
+                            setEditOpen(true);
+                          }
+                        },
                       }}
+                      placement="bottomRight"
+                      trigger={["click"]}
                     >
-                      Edit
-                    </Button>
-                  </Flex>
-                ),
+                      <Button
+                        type="primary"
+                        danger
+                        size="small"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Actions <DownOutlined />
+                      </Button>
+                    </Dropdown>
+                  );
+                },
               },
             ]}
             onRow={(record) => ({
