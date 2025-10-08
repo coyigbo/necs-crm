@@ -11,12 +11,15 @@ import {
   message,
   Form,
   Input,
+  Flex,
 } from "antd";
 import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useOrg } from "../org/OrgProvider";
 import { useAuth } from "../auth/AuthProvider";
+import { DownOutlined } from "@ant-design/icons";
 
 type Contact = {
   id: string;
@@ -44,6 +47,36 @@ export default function Networking() {
   const { user } = useAuth();
   const [messageApi, messageContextHolder] = message.useMessage();
   const [modal, modalContextHolder] = Modal.useModal();
+
+  const renderNull = () => <span style={{ color: "#ef4444" }}>NULL</span>;
+
+  const displayOrNull = (value: any): ReactNode => {
+    if (
+      value === null ||
+      value === undefined ||
+      (typeof value === "string" && value.trim() === "")
+    ) {
+      return renderNull();
+    }
+    return value;
+  };
+
+  const toTitleCase = (s: string) =>
+    s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+
+  const headerCellStyle: CSSProperties = useMemo(
+    () => ({
+      backgroundColor: "#f7f9fc",
+      fontWeight: 600,
+      textTransform: "uppercase",
+      fontSize: 12,
+      letterSpacing: 0.3,
+      color: "#344054",
+      borderBottom: "1px solid #e5e7eb",
+      textAlign: "center",
+    }),
+    []
+  );
 
   const loadRows = async (orgId: string) => {
     const { data, error } = await supabase
@@ -349,6 +382,72 @@ export default function Networking() {
             </div>
           </Form>
         </Modal>
+
+        <Modal
+          title={selected ? selected.name : "Contact Details"}
+          open={!!selected}
+          onCancel={() => setSelected(null)}
+          footer={null}
+          destroyOnClose
+        >
+          {selected && (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 12,
+              }}
+            >
+              <div>
+                <Typography.Text type="secondary">Name</Typography.Text>
+                <div>{selected.name}</div>
+              </div>
+              <div>
+                <Typography.Text type="secondary">Organization</Typography.Text>
+                <div>
+                  {selected.organization
+                    ? toTitleCase(selected.organization)
+                    : renderNull()}
+                </div>
+              </div>
+              <div>
+                <Typography.Text type="secondary">Title</Typography.Text>
+                <div>{displayOrNull(selected.title)}</div>
+              </div>
+              <div>
+                <Typography.Text type="secondary">Email</Typography.Text>
+                <div>{displayOrNull(selected.email)}</div>
+              </div>
+              <div>
+                <Typography.Text type="secondary">Phone</Typography.Text>
+                <div>{displayOrNull(selected.phone)}</div>
+              </div>
+              <div>
+                <Typography.Text type="secondary">Donor</Typography.Text>
+                <div>{displayOrNull(selected.donor)}</div>
+              </div>
+              <div>
+                <Typography.Text type="secondary">
+                  Award Ceremony
+                </Typography.Text>
+                <div>{displayOrNull(selected.award_ceremony)}</div>
+              </div>
+              <div>
+                <Typography.Text type="secondary">Status</Typography.Text>
+                <div>{displayOrNull(selected.status)}</div>
+              </div>
+              <div>
+                <Typography.Text type="secondary">Created At</Typography.Text>
+                <div>
+                  {selected.created_at
+                    ? new Date(selected.created_at).toLocaleDateString()
+                    : renderNull()}
+                </div>
+              </div>
+            </div>
+          )}
+        </Modal>
+
         {rows === null ? (
           <div
             style={{
@@ -369,25 +468,84 @@ export default function Networking() {
             <Table
               rowKey={(r) => r.id}
               dataSource={rows}
+              pagination={{
+                showSizeChanger: true,
+                showQuickJumper: false,
+                showTotal: (total, range) =>
+                  `${range[0]}-${range[1]} of ${total} items`,
+              }}
+              scroll={undefined}
+              tableLayout="fixed"
+              style={{ width: "100%" }}
               columns={[
-                { title: "Name", dataIndex: "name" },
-                { title: "Organization", dataIndex: "organization" },
-                { title: "Title", dataIndex: "title" },
-                { title: "Email", dataIndex: "email" },
-                { title: "Phone", dataIndex: "phone" },
-                { title: "Donor", dataIndex: "donor", width: 100 },
+                {
+                  title: "Name",
+                  dataIndex: "name",
+                  ellipsis: true,
+                  align: "center",
+                  onHeaderCell: () => ({ style: headerCellStyle }),
+                  render: (value: string | null) =>
+                    value ? toTitleCase(String(value)) : renderNull(),
+                },
+                {
+                  title: "Organization",
+                  dataIndex: "organization",
+                  ellipsis: true,
+                  align: "center",
+                  onHeaderCell: () => ({ style: headerCellStyle }),
+                  render: (value: string | null) =>
+                    value ? toTitleCase(String(value)) : renderNull(),
+                },
+                {
+                  title: "Title",
+                  dataIndex: "title",
+                  ellipsis: true,
+                  align: "center",
+                  onHeaderCell: () => ({ style: headerCellStyle }),
+                  render: (value: string | null) =>
+                    value ? toTitleCase(String(value)) : renderNull(),
+                },
+                {
+                  title: "Email",
+                  dataIndex: "email",
+                  ellipsis: true,
+                  align: "center",
+                  onHeaderCell: () => ({ style: headerCellStyle }),
+                  render: (value: string | null) =>
+                    value ? String(value).toLowerCase() : renderNull(),
+                },
+                {
+                  title: "Phone",
+                  dataIndex: "phone",
+                  ellipsis: true,
+                  width: 120,
+                  align: "center",
+                  onHeaderCell: () => ({ style: headerCellStyle }),
+                  render: (value: string | null) => displayOrNull(value),
+                },
+                {
+                  title: "Donor",
+                  dataIndex: "donor",
+                  width: 80,
+                  align: "center",
+                  onHeaderCell: () => ({ style: headerCellStyle }),
+                  render: (value: string | null) => displayOrNull(value),
+                },
                 {
                   title: "Award Ceremony",
                   dataIndex: "award_ceremony",
-                  width: 140,
+                  width: 120,
+                  align: "center",
+                  onHeaderCell: () => ({ style: headerCellStyle }),
+                  render: (value: string | null) => displayOrNull(value),
                 },
-                { title: "ID", dataIndex: "id", width: 120, hidden: true },
                 {
                   title: "Actions",
-                  fixed: "right" as const,
                   width: 120,
-                  render: (r: Contact) => {
+                  onHeaderCell: () => ({ style: headerCellStyle }),
+                  render: (_, record) => {
                     const items = [
+                      { key: "view", label: "View Details" },
                       { key: "edit", label: "Edit" },
                       { key: "delete", label: "Delete", danger: true },
                     ];
@@ -396,29 +554,35 @@ export default function Networking() {
                         menu={{
                           items,
                           onClick: async ({ key }) => {
-                            if (key === "edit") {
-                              setSelected(r);
+                            if (key === "view") {
+                              setSelected(record);
+                            } else if (key === "edit") {
+                              console.log(
+                                "Edit button clicked for:",
+                                record.name
+                              );
+                              setSelected(record);
                               setEditOpen(true);
                               editForm.setFieldsValue({
-                                name: r.name,
-                                organization: r.organization ?? "",
-                                title: r.title ?? "",
-                                email: r.email ?? "",
-                                phone: r.phone ?? "",
-                                donor: r.donor ?? "",
-                                award_ceremony: r.award_ceremony ?? "",
+                                name: record.name,
+                                organization: record.organization ?? "",
+                                title: record.title ?? "",
+                                email: record.email ?? "",
+                                phone: record.phone ?? "",
+                                donor: record.donor ?? "",
+                                award_ceremony: record.award_ceremony ?? "",
                               });
                             } else if (key === "delete") {
                               modal.confirm({
                                 title: "Delete record?",
-                                content: `Are you sure you want to delete ${r.name}?`,
+                                content: `Are you sure you want to delete ${record.name}?`,
                                 okButtonProps: { danger: true },
                                 onOk: async () => {
                                   try {
                                     const { error } = await supabase
                                       .from("networking_contacts")
                                       .delete()
-                                      .eq("id", r.id);
+                                      .eq("id", record.id);
                                     if (error) throw error;
                                     messageApi.success("Record deleted");
                                     if (organizationId)
@@ -431,15 +595,26 @@ export default function Networking() {
                             }
                           },
                         }}
+                        placement="bottomRight"
+                        trigger={["click"]}
                       >
-                        <Button type="primary" danger>
-                          Actions
+                        <Button
+                          type="primary"
+                          danger
+                          size="small"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          Actions <DownOutlined />
                         </Button>
                       </Dropdown>
                     );
                   },
                 },
               ]}
+              onRow={(record) => ({
+                onClick: () => setSelected(record),
+                style: { cursor: "pointer" },
+              })}
             />
           </motion.div>
         )}
