@@ -26,6 +26,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../lib/supabaseClient";
 import { useOrg } from "../org/OrgProvider";
 import { useAuth } from "../auth/AuthProvider";
+import dayjs from "dayjs";
 
 type GrantStatus =
   | "Pending Submission"
@@ -78,6 +79,9 @@ export default function Grantmaking() {
   const [awardForm] = Form.useForm();
   const [awardImportOpen, setAwardImportOpen] = useState(false);
   const [appImportOpen, setAppImportOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingGrant, setEditingGrant] = useState<GrantItem | null>(null);
+  const [editForm] = Form.useForm();
 
   const loadGrantsWithNames = async (orgId: string) => {
     const { data, error } = await supabase
@@ -429,6 +433,38 @@ export default function Grantmaking() {
                                                 }}
                                               >
                                                 Move to pending
+                                              </span>
+                                            ),
+                                          },
+                                          {
+                                            key: "edit",
+                                            label: (
+                                              <span
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setEditingGrant(r);
+                                                  setEditOpen(true);
+                                                  editForm.setFieldsValue({
+                                                    donor_name: r.donor_name,
+                                                    date_opened: r.date_opened
+                                                      ? dayjs(r.date_opened)
+                                                      : null,
+                                                    date_due: r.date_due
+                                                      ? dayjs(r.date_due)
+                                                      : null,
+                                                    program: r.program,
+                                                    value: r.value,
+                                                    region: r.region,
+                                                    contact: r.contact,
+                                                    review_url: r.review_url,
+                                                    notes: r.notes,
+                                                    report_due: r.report_due
+                                                      ? dayjs(r.report_due)
+                                                      : null,
+                                                  });
+                                                }}
+                                              >
+                                                Edit
                                               </span>
                                             ),
                                           },
@@ -1699,6 +1735,112 @@ export default function Grantmaking() {
           <p className="ant-upload-text">Select from Local Computer</p>
           <p className="ant-upload-hint">or drag and drop a .csv file here</p>
         </Dragger>
+      </Modal>
+
+      <Modal
+        title="Edit Application"
+        open={editOpen}
+        onCancel={() => {
+          setEditOpen(false);
+          setEditingGrant(null);
+          editForm.resetFields();
+        }}
+        footer={null}
+        destroyOnClose
+      >
+        <Form
+          form={editForm}
+          layout="vertical"
+          onFinish={async (values: any) => {
+            if (!organizationId || !editingGrant) return;
+            try {
+              const { error } = await supabase
+                .from("grants")
+                .update({
+                  donor_name: values.donor_name,
+                  date_opened: values.date_opened
+                    ? values.date_opened.format("YYYY-MM-DD")
+                    : null,
+                  date_due: values.date_due
+                    ? values.date_due.format("YYYY-MM-DD")
+                    : null,
+                  program: values.program ?? null,
+                  value:
+                    typeof values.value === "number" &&
+                    !Number.isNaN(values.value)
+                      ? values.value
+                      : null,
+                  region: values.region ?? null,
+                  contact: values.contact ?? null,
+                  review_url: values.review_url ?? null,
+                  notes: values.notes ?? null,
+                  report_due: values.report_due
+                    ? values.report_due.format("YYYY-MM-DD")
+                    : null,
+                })
+                .eq("id", editingGrant.id)
+                .eq("organization_id", organizationId);
+              if (error) throw error;
+              message.success("Application updated");
+              editForm.resetFields();
+              setEditOpen(false);
+              setEditingGrant(null);
+              await loadGrantsWithNames(organizationId);
+            } catch (e) {
+              message.error("Failed to update application");
+            }
+          }}
+          requiredMark={false}
+        >
+          <Form.Item
+            name="donor_name"
+            label="Donor Name"
+            rules={[{ required: true }]}
+          >
+            <Input placeholder="Donor name" />
+          </Form.Item>
+          <Form.Item name="date_opened" label="Date Opened">
+            <DatePicker style={{ width: "100%" }} />
+          </Form.Item>
+          <Form.Item name="date_due" label="Date Due">
+            <DatePicker style={{ width: "100%" }} />
+          </Form.Item>
+          <Form.Item name="program" label="Program">
+            <Input placeholder="Program" />
+          </Form.Item>
+          <Form.Item name="value" label="Value">
+            <InputNumber style={{ width: "100%" }} min={0} />
+          </Form.Item>
+          <Form.Item name="region" label="Region">
+            <Input placeholder="Region" />
+          </Form.Item>
+          <Form.Item name="contact" label="Contact">
+            <Input placeholder="Contact" />
+          </Form.Item>
+          <Form.Item name="review_url" label="Review (URL)">
+            <Input placeholder="https://..." type="url" />
+          </Form.Item>
+          <Form.Item name="notes" label="Notes">
+            <Input.TextArea rows={3} />
+          </Form.Item>
+          <Form.Item name="report_due" label="Report Due">
+            <DatePicker style={{ width: "100%" }} />
+          </Form.Item>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <Button
+              onClick={() => {
+                setEditOpen(false);
+                setEditingGrant(null);
+                editForm.resetFields();
+              }}
+            >
+              Cancel
+            </Button>
+            <Button type="primary" htmlType="submit">
+              Update
+            </Button>
+          </div>
+        </Form>
       </Modal>
     </Card>
   );
