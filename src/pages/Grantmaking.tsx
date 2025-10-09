@@ -544,6 +544,27 @@ export default function Grantmaking() {
                                                 domEvent.stopPropagation();
                                                 if (key === "view") {
                                                   setSelectedGrant(r);
+                                                } else if (key === "edit") {
+                                                  setEditingGrant(r);
+                                                  setEditOpen(true);
+                                                  editForm.setFieldsValue({
+                                                    donor_name: r.donor_name,
+                                                    date_opened: r.date_opened
+                                                      ? dayjs(r.date_opened)
+                                                      : null,
+                                                    date_due: r.date_due
+                                                      ? dayjs(r.date_due)
+                                                      : null,
+                                                    program: r.program,
+                                                    value: r.value,
+                                                    region: r.region,
+                                                    contact: r.contact,
+                                                    review_url: r.review_url,
+                                                    notes: r.notes,
+                                                    report_due: r.report_due
+                                                      ? dayjs(r.report_due)
+                                                      : null,
+                                                  });
                                                 }
                                               },
                                             }}
@@ -659,6 +680,39 @@ export default function Grantmaking() {
                                 const items: any[] = [
                                   { key: "view", label: "View Details" },
                                 ];
+                                // Provide Edit action in all views
+                                items.push({
+                                  key: "edit",
+                                  label: (
+                                    <span
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingGrant(r);
+                                        setEditOpen(true);
+                                        editForm.setFieldsValue({
+                                          donor_name: r.donor_name,
+                                          date_opened: r.date_opened
+                                            ? dayjs(r.date_opened)
+                                            : null,
+                                          date_due: r.date_due
+                                            ? dayjs(r.date_due)
+                                            : null,
+                                          program: r.program,
+                                          value: r.value,
+                                          region: r.region,
+                                          contact: r.contact,
+                                          review_url: r.review_url,
+                                          notes: r.notes,
+                                          report_due: r.report_due
+                                            ? dayjs(r.report_due)
+                                            : null,
+                                        });
+                                      }}
+                                    >
+                                      Edit
+                                    </span>
+                                  ),
+                                });
                                 if (inPendingView) {
                                   items.push({
                                     key: "mark-submitted",
@@ -955,6 +1009,27 @@ export default function Grantmaking() {
                                         domEvent.stopPropagation();
                                         if (key === "view") {
                                           setSelectedGrant(r);
+                                        } else if (key === "edit") {
+                                          setEditingGrant(r);
+                                          setEditOpen(true);
+                                          editForm.setFieldsValue({
+                                            donor_name: r.donor_name,
+                                            date_opened: r.date_opened
+                                              ? dayjs(r.date_opened)
+                                              : null,
+                                            date_due: r.date_due
+                                              ? dayjs(r.date_due)
+                                              : null,
+                                            program: r.program,
+                                            value: r.value,
+                                            region: r.region,
+                                            contact: r.contact,
+                                            review_url: r.review_url,
+                                            notes: r.notes,
+                                            report_due: r.report_due
+                                              ? dayjs(r.report_due)
+                                              : null,
+                                          });
                                         }
                                       },
                                     }}
@@ -1224,6 +1299,38 @@ export default function Grantmaking() {
                               const items: any[] = [
                                 { key: "view", label: "View Details" },
                                 {
+                                  key: "edit",
+                                  label: (
+                                    <span
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingGrant(r);
+                                        setEditOpen(true);
+                                        editForm.setFieldsValue({
+                                          donor_name: r.donor_name,
+                                          date_opened: r.date_opened
+                                            ? dayjs(r.date_opened)
+                                            : null,
+                                          date_due: r.date_due
+                                            ? dayjs(r.date_due)
+                                            : null,
+                                          program: r.program,
+                                          value: r.value,
+                                          region: r.region,
+                                          contact: r.contact,
+                                          review_url: r.review_url,
+                                          notes: r.notes,
+                                          report_due: r.report_due
+                                            ? dayjs(r.report_due)
+                                            : null,
+                                        });
+                                      }}
+                                    >
+                                      Edit
+                                    </span>
+                                  ),
+                                },
+                                {
                                   key: "revert",
                                   label: (
                                     <span
@@ -1313,6 +1420,27 @@ export default function Grantmaking() {
                                       domEvent.stopPropagation();
                                       if (key === "view") {
                                         setSelectedGrant(r);
+                                      } else if (key === "edit") {
+                                        setEditingGrant(r);
+                                        setEditOpen(true);
+                                        editForm.setFieldsValue({
+                                          donor_name: r.donor_name,
+                                          date_opened: r.date_opened
+                                            ? dayjs(r.date_opened)
+                                            : null,
+                                          date_due: r.date_due
+                                            ? dayjs(r.date_due)
+                                            : null,
+                                          program: r.program,
+                                          value: r.value,
+                                          region: r.region,
+                                          contact: r.contact,
+                                          review_url: r.review_url,
+                                          notes: r.notes,
+                                          report_due: r.report_due
+                                            ? dayjs(r.report_due)
+                                            : null,
+                                        });
                                       }
                                     },
                                   }}
